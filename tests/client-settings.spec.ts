@@ -19,5 +19,7 @@ describe('allowlist settings card helpers', () => {
 
   it('keeps Chinese and English dictionaries structurally paired', () => {
     expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort())
+    expect(zh.title).toBe('Web Fetch Enhanced')
+    expect(en.title).toBe('Web Fetch Enhanced')
   })
 })

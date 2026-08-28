@@ -53,7 +53,7 @@ dsh plugin --profile web add link:/absolute/path/to/dsh-web-fetch-enhanced
 
 Open DSH Web and go to:
 
-**Settings → Plugins → Configurable plugins → Enhanced web fetch allowlist**
+**Settings → Plugins → Configurable plugins → Web Fetch Enhanced**
 
 Expand the card and enter one network per line under **Allowed CIDRs**. For a typical Clash / Mihomo fake-IP setup:
 

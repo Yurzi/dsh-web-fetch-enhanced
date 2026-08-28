@@ -1,5 +1,5 @@
 export const en = {
-  title: 'Enhanced web fetch allowlist',
+  title: 'Web Fetch Enhanced',
   description: 'Allow selected non-public destinations for web_fetch. Public addresses remain available by default.',
   expand: 'Expand',
   collapse: 'Collapse',
@@ -25,7 +25,7 @@ export const en = {
 export type LocaleKey = keyof typeof en
 
 export const zh: Record<LocaleKey, string> = {
-  title: 'WebFetch白名单',
+  title: 'Web Fetch Enhanced',
   description: '允许 web_fetch 访问指定的非公网目标；公网地址默认仍可正常访问。',
   expand: '展开',
   collapse: '折叠',

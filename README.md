@@ -53,7 +53,7 @@ dsh plugin --profile web add link:/absolute/path/to/dsh-web-fetch-enhanced
 
 打开 DSH Web，进入：
 
-**设置 → 插件 → 可配置插件 → WebFetch白名单**
+**设置 → 插件 → 可配置插件 → Web Fetch Enhanced**
 
 展开卡片，在“允许的 CIDR”中每行填写一个网段。例如 Clash / Mihomo 的常见 Fake-IP 配置：
 
