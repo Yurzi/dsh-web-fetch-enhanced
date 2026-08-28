@@ -1,0 +1,16 @@
+# Profile user patch after installing the bundle, retaining fetchProvider: http.
+# A patch replaces a row's whole config, so both WebRuntime fields are restated.
+- id: web
+  config:
+    searchProvider: deepseek-official
+    fetchProvider: http
+
+# The native provider MUST be disabled to avoid duplicate provider id "http".
+- id: web-fetch-http
+  disabled: true
+
+- id: web-fetch-enhanced
+  config:
+    providerId: http
+    allowCidrs:
+      - 198.18.0.0/15

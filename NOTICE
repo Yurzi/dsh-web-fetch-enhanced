@@ -1,0 +1,14 @@
+dsh-web-fetch-enhanced
+
+The HTTP URL policy, DNS64 discovery, address-pinned Undici transport, redirect
+handling, bounded body reader, and error classification in this project are
+based in part on @deepseek-ai/dsh-web-fetch-http from DeepSeek Harness:
+
+  https://github.com/deepseek-ai/deepseek-harness
+
+DeepSeek Harness is distributed under the MIT License.
+Copyright (c) 2026 DeepSeek.
+
+This project modifies that design to support explicit operator-configured CIDR
+and hostname exceptions for non-public destinations. The project is not an
+official DeepSeek package unless explicitly stated by its publisher.

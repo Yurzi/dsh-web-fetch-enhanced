@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": { "correctness": "error" },
+  "options": { "reportUnusedDisableDirectives": "warn", "typeAware": true },
+  "env": { "builtin": true },
+  "ignorePatterns": ["lib/**", "coverage/**", "node_modules/**", "**/*.config.ts"]
+}

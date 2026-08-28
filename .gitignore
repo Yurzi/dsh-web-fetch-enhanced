@@ -1,0 +1,10 @@
+node_modules/
+lib/
+coverage/
+.pnpm-store/
+.pnpm-home/
+.xdg/
+.npm-cache/
+*.tgz
+.DS_Store
+.env

@@ -1,0 +1,11 @@
+# Source overlay for plugin development. Relative entries are anchored to this
+# file and run through the DeepSeek Harness CLI's tsx loader.
+
+- id: web
+  config:
+    searchProvider: deepseek-official
+    fetchProvider: http-enhanced
+
+- insert:
+    - id: web-fetch-enhanced
+      name: './src/index.ts'
