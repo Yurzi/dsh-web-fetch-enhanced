@@ -1,151 +1,235 @@
 # dsh-web-fetch-enhanced
 
-[English](README.en.md) | 中文
+[中文](README.md) · [English](README.en.md)
 
-面向 DeepSeek Harness 的可配置 HTTP(S) 抓取提供方。它保持原生 <code>web_fetch</code> 的模型工具接口不变，只替换 <code>ctx.web</code> 后面的 fetch provider，使指定的非公网 CIDR 可以通过显式白名单放行。
+> 为 DeepSeek Harness 提供安全、可控的增强型网页抓取：解决 Clash / Mihomo Fake-IP 与受信任内网目标被原生公网地址检查拦截的问题，同时保持模型侧 `web_fetch` 用法不变。
 
-## 为什么需要它
+## 它解决什么问题？
 
-DeepSeek Harness 原生 HTTP provider 会拒绝所有非公网地址。这是安全的默认值，但 Clash/Mihomo 等 fake-IP 模式常把域名解析到 <code>198.18.0.0/15</code> 一类保留地址，再由透明代理完成实际路由。原生检查会在代理接管前拒绝这些地址。
+DeepSeek Harness 原生 HTTP provider 默认拒绝所有非公网地址，这是重要的 SSRF 安全边界。但在以下场景中，目标明明可信，也可能被提前拦截：
 
-本插件增加两个默认关闭的例外维度：
+- Clash、Mihomo 等透明代理的 Fake-IP 模式把公网域名解析到 `198.18.0.0/15`；
+- Agent 需要读取企业内网文档站、自建知识库或其他受信任的私有网络服务；
+- 本地代理在接管连接前，需要先通过 Harness 的地址检查。
 
-- <code>allowCidrs</code>：允许哪些非公网 IPv4/IPv6 CIDR；
-- <code>allowHostnames</code>：可选的第二因子，仅允许指定域名使用上述 CIDR 例外。
+本插件允许管理员显式配置两层例外：
 
-空白名单时行为与原生安全边界一致。
+1. **CIDR 白名单**：哪些非公网 IPv4 / IPv6 网段可以访问；
+2. **域名白名单（可选）**：哪些域名可以使用上述 CIDR 例外。
 
-## 特性
+没有配置任何 CIDR 时，行为与原生 provider 的“仅公网”默认值一致。
 
-- 默认拒绝全部非公网地址，公网单播地址照常访问；
-- DNS 完整答案集校验：任意一个答案不合规就拒绝整个请求；
-- 校验后连接固定，不让 HTTP transport 再次解析域名；
-- IPv4、IPv6、IPv4-mapped IPv6 与活动 DNS64/NAT64 检查；
-- 仅允许匿名 GET，不发送 cookie、Authorization 或 URL 内嵌凭据；
-- 仅同源重定向，每一跳重新解析、校验并固定；
-- URL、响应字节、解码字符、跳数与超时均有上限；
-- 只返回 HTML 或文本，非 2xx 状态仍作为正常结果；
-- provider ID 可配置，支持与原生 provider 共存或 drop-in 替换；
-- 不注册新的模型工具，现有 <code>@deepseek-ai/dsh-tool-web</code> 与 <code>web_fetch</code> schema 无需变化。
+## 主要特性
 
-## 安装到 Profile
+- **与原生工具完全兼容**：不增加新模型工具，Agent 继续调用 `web_fetch`；
+- **网页端即时配置**：在 DSH Web 设置中编辑白名单，保存后下一次抓取立即生效；
+- **默认拒绝非公网目标**：只有明确命中的 CIDR 例外才会放行；
+- **可选域名第二因子**：将可访问网段进一步限制到精确域名或 `*.example.com`；
+- **DNS 全答案校验与连接固定**：所有解析结果都必须合规，连接只使用已验证的地址；
+- **重定向逐跳复核**：仅跟随同源重定向，并在每一跳重新解析、校验和固定地址；
+- **受限匿名请求**：只发送无 Cookie、无 Authorization、无 URL 凭据的 GET 请求；
+- **完整资源上限**：限制 URL、响应字节、解码字符、重定向次数和超时时间；
+- **IPv4 / IPv6 防护**：覆盖 IPv4-mapped IPv6 与活动 DNS64 / NAT64 目标检查。
 
-本包与 DeepSeek Harness 内部 Host 插件一样，以 Cordis namespace plugin 发布；安装依赖后，将随包发布的 <code>cordis.patch.yml</code> 合并到 Profile 的 composition patch：
+## 快速开始
 
-~~~bash
-pnpm add dsh-web-fetch-enhanced
-# 将 node_modules/dsh-web-fetch-enhanced/cordis.patch.yml 合并到 Profile patch
-~~~
+### 1. 安装到 Web Profile
 
-安装层默认注册 <code>http-enhanced</code>、把现有 <code>web.fetchProvider</code> 选到该 ID，但保持空白名单。然后把需要的配置**合并**到 <code>$DSH_HOME/profiles/&lt;profile&gt;/cordis.patch.yml</code>，不要覆盖文件中已有的其他 patch：
+推荐使用 DSH 的插件管理命令。安装包会把随包发布的 `cordis.patch.yml` 作为 Profile patch 层应用：
 
-~~~yaml
-- id: web-fetch-enhanced
-  config:
-    allowCidrs:
-      - 198.18.0.0/15
-~~~
+```bash
+dsh plugin --profile web add dsh-web-fetch-enhanced
+```
 
-验证最终组合：
+如果 Web Profile 已经在运行，请按你的部署方式重启对应的 Host 进程，使新插件和 Client face 完成装载。
 
-~~~bash
-dsh --profile <profile> --dump-config
-~~~
+本地源码开发时可以使用绝对路径：
 
-插件是 Host 侧的 <code>ctx.web</code> provider，不应放入 agent preset。安装依赖不会自动修改 composition；请显式合并 [cordis.patch.yml](cordis.patch.yml)，也可参考 [manual.cordis.patch.yml](examples/manual.cordis.patch.yml)。
+```bash
+dsh plugin --profile web add link:/absolute/path/to/dsh-web-fetch-enhanced
+```
 
-## 推荐接入：独立 provider ID
+### 2. 配置白名单
 
-包内 [cordis.patch.yml](cordis.patch.yml) 已完成两项 Host 配置：完整重述 <code>web</code> 行的 <code>searchProvider</code>/<code>fetchProvider</code>，并通过 <code>- insert:</code> 插入 <code>web-fetch-enhanced</code> 行。原生 <code>http</code> provider 可以保留，因为 <code>ctx.web</code> 显式选择 <code>http-enhanced</code>，不依赖挂载顺序。
+打开 DSH Web，进入：
 
-合并 composition patch 后，推荐使用 [coexist.cordis.yml](examples/coexist.cordis.yml) 作为 Profile 用户层配置。该示例覆盖已插入的行，因此不重复写 <code>name</code> 或 <code>- insert:</code>。
+**设置 → 插件 → 可配置插件 → WebFetch白名单**
 
-## fake-IP 示例
+展开卡片，在“允许的 CIDR”中每行填写一个网段。例如 Clash / Mihomo 的常见 Fake-IP 配置：
 
-如果 fake-IP 范围代表所有经透明代理路由的域名，Profile patch 可以写为：
+```text
+198.18.0.0/15
+```
 
-~~~yaml
-- id: web-fetch-enhanced
-  config:
-    allowCidrs:
-      - 198.18.0.0/15
-~~~
+如果希望只有指定网站可以使用这个例外，再填写“允许的域名”：
 
-如果只需少量站点使用例外，建议增加域名第二因子：
+```text
+api.example.com
+*.docs.example.com
+```
 
-~~~yaml
-- id: web-fetch-enhanced
-  config:
-    allowCidrs:
-      - 198.18.0.0/15
-    allowHostnames:
-      - api.example.com
-      - '*.docs.example.com'
-~~~
+点击“保存”。无需重启 Profile，下一次 `web_fetch` 就会使用新规则。
 
-<code>*.docs.example.com</code> 匹配子域名但不匹配 <code>docs.example.com</code> 本身。规则不接受端口或反斜杠；公网地址不受 <code>allowHostnames</code> 限制。
+### 3. 正常使用 `web_fetch`
 
-## Drop-in 替换
+插件不会改变 Agent 的使用方式。你仍然可以直接用自然语言提出请求，例如：
 
-若希望继续使用 <code>fetchProvider: http</code>，在合并基础 composition patch 后再合并 [drop-in.cordis.yml](examples/drop-in.cordis.yml) 的 Profile patch。它会完整重述 <code>web</code> 配置、禁用原生 provider，并让本插件单独注册 <code>http</code>：
+> 读取 https://docs.example.com/guide，并总结部署步骤。
 
-~~~yaml
-- id: web
-  config:
-    searchProvider: deepseek-official
-    fetchProvider: http
+Agent 会照常调用 `web_fetch`；地址解析、白名单判断和安全传输由本插件在底层完成。
 
-- id: web-fetch-http
-  disabled: true
+## 常见配置场景
 
-- id: web-fetch-enhanced
-  config:
-    providerId: http
-    allowCidrs:
-      - 198.18.0.0/15
-~~~
+### Clash / Mihomo Fake-IP
 
-两个 provider 同时注册 <code>http</code> 会触发 <code>WEB_DUPLICATE_PROVIDER</code>，不会发生 last-wins 覆盖。
+如果整个 Fake-IP 网段都由可信代理接管：
 
-## 配置
+| 设置项 | 内容 |
+| --- | --- |
+| 允许的 CIDR | `198.18.0.0/15` |
+| 允许的域名 | 留空 |
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| <code>providerId</code> | <code>http-enhanced</code> | 注册到 <code>ctx.web</code> 的 fetch provider ID |
-| <code>allowCidrs</code> | <code>[]</code> | 可作为非公网例外的 IPv4/IPv6 CIDR |
-| <code>allowHostnames</code> | <code>[]</code> | 可选第二因子：精确域名或最左侧 <code>*.</code> 通配符 |
-| <code>maxResponseBytes</code> | <code>5,000,000</code> | 响应正文最大读取字节数 |
-| <code>maxBodyChars</code> | <code>100,000</code> | 解码后最大字符数 |
-| <code>timeoutMs</code> | <code>30,000</code> | provider 级资源超时 |
-| <code>maxRedirects</code> | <code>5</code> | 同源重定向最大跳数，0 表示不跟随 |
-| <code>userAgent</code> | <code>dsh-web-fetch-enhanced/0.1.0</code> | 每个请求的 User-Agent |
+留空域名白名单表示：任意域名只要解析到已放行 CIDR，就可以使用该 CIDR 例外。公网地址仍照常访问。
 
-配置错误会在插件启动时失败；不会静默忽略无效 CIDR、域名规则或资源上限。IPv4 CIDR 必须使用四段十进制和网络基址，IPv6 CIDR 不接受 zone ID，避免十六进制／八进制／短地址或主机位造成审计歧义。
+### 只允许少量域名使用 Fake-IP
+
+| 设置项 | 内容 |
+| --- | --- |
+| 允许的 CIDR | `198.18.0.0/15` |
+| 允许的域名 | `api.example.com`、`*.docs.example.com` |
+
+这是更严格的配置，适合代理规则不完全受你控制的环境。
+
+### 访问受信任的内网站点
+
+```text
+# 允许的 CIDR
+10.20.0.0/16
+
+# 允许的域名
+wiki.corp.example
+*.docs.corp.example
+```
+
+请只放行实际需要的最小网段，不要为了方便加入整个 RFC1918 地址空间。
+
+## 白名单规则
+
+### CIDR
+
+- 每行一个标准 IPv4 或 IPv6 CIDR；
+- IPv4 必须使用四段十进制网络地址，例如 `192.168.1.0/24`；
+- IPv6 不接受 `%eth0` 之类的 Zone ID；
+- 必须填写网络基址，不能用带主机位的地址代替网段；
+- 空白行会被忽略，重复条目会在设置页中提示并阻止保存。
+
+### 域名
+
+- 精确规则：`api.example.com`；
+- 最左侧通配规则：`*.example.com`；
+- `*.example.com` 匹配其子域名，但**不匹配** `example.com` 本身；
+- 不要填写协议、路径或端口，例如 `https://example.com`、`example.com/path`、`example.com:8080` 都不是合法规则；
+- 域名白名单只约束“非公网 CIDR 例外”，不会限制原本就允许访问的公网地址。
+
+### 两层规则如何组合？
+
+| 目标地址 | CIDR 命中 | 已配置域名白名单且域名命中 | 结果 |
+| --- | --- | --- | --- |
+| 公网地址 | 不需要 | 不需要 | 允许 |
+| 非公网地址 | 否 | 任意 | 拒绝 |
+| 非公网地址 | 是 | 未配置域名白名单 | 允许 |
+| 非公网地址 | 是 | 是 | 允许 |
+| 非公网地址 | 是 | 否 | 拒绝 |
+
+## 设置页按钮说明
+
+- **保存**：把当前草稿写入用户设置层；
+- **放弃修改**：丢弃尚未保存的编辑，恢复当前生效值；
+- **重置为 Profile 配置**：把“删除 `allowCidrs` 和 `allowHostnames` 用户覆盖、重新继承 Profile composition”的操作加入草稿；仍需点击“保存”才会生效；
+- **只读状态**：当前连接没有持久化 Host Profile 设置的权限。通常应从 Host 本机的 loopback 地址打开 Web GUI。
+
+“保存空列表”和“重置为 Profile 配置”含义不同：前者显式覆盖为空，后者恢复继承。
 
 ## 安全提示
 
-放行 CIDR 等于扩大 SSRF 可达面。尤其在 fake-IP 模式下，整个 fake-IP 网段可能代表任意域名；如果代理规则不可信，应同时配置 <code>allowHostnames</code>。不要为了方便放行 <code>0.0.0.0/0</code>、<code>::/0</code>、云元数据地址或整个 RFC1918 空间。
+> **白名单会扩大 Agent 可发起 HTTP 请求的网络范围。只放行你理解并信任的最小目标。**
 
-详细威胁模型、NAT64 行为和上线检查表见 [安全设计](docs/security.zh-CN.md)。架构与 provider 选择语义见 [设计文档](docs/design.zh-CN.md)。
+请勿加入以下宽泛或敏感目标：
 
-## 开发
+- `0.0.0.0/0` 或 `::/0`；
+- 云元数据地址，例如 `169.254.169.254/32`；
+- 不必要的整个 `10.0.0.0/8`、`172.16.0.0/12` 或 `192.168.0.0/16`；
+- 由不可信代理、DNS 或租户共同控制的网段。
 
-要求 Node.js <code>^22.19.0 || >=24</code> 与 pnpm。
+即使配置了白名单，Host 仍会重新执行完整的 CIDR、域名、DNS 和 provider 身份校验；浏览器端校验不是安全边界。详细威胁模型见 [安全设计](docs/security.zh-CN.md)。
 
-~~~bash
+## 高级配置
+
+通常只需要在 Web GUI 中维护两项白名单。其他参数应由 Profile composition 管理：
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `providerId` | `http-enhanced` | 注册到 `ctx.web` 的 fetch provider ID |
+| `allowCidrs` | `[]` | 允许作为非公网例外的 IPv4 / IPv6 CIDR |
+| `allowHostnames` | `[]` | 可选的精确域名或最左侧通配规则 |
+| `maxResponseBytes` | `5,000,000` | 响应正文最大读取字节数 |
+| `maxBodyChars` | `100,000` | 解码后最大字符数 |
+| `timeoutMs` | `30,000` | 单次抓取超时（毫秒） |
+| `maxRedirects` | `5` | 同源重定向最大跳数；`0` 表示不跟随 |
+| `userAgent` | `dsh-web-fetch-enhanced/0.1.0` | 每个请求使用的 User-Agent |
+
+默认安装采用独立的 `http-enhanced` provider ID，并保留原生 `http` provider。需要手动组合或 drop-in 替换时，参考：
+
+- [独立 provider 示例](examples/coexist.cordis.yml)
+- [drop-in 替换示例](examples/drop-in.cordis.yml)
+- [手动 composition patch](examples/manual.cordis.patch.yml)
+- [架构与 provider 选择语义](docs/design.zh-CN.md)
+
+> 不要让原生 provider 和本插件同时注册同一个 ID，否则 Host 会以 `WEB_DUPLICATE_PROVIDER` 拒绝启动，而不是执行 last-wins 覆盖。
+
+## 常见问题
+
+<details>
+<summary><strong>开启 Clash / Mihomo 后，为什么普通公网网页也被判定为非公网地址？</strong></summary>
+
+Fake-IP 模式会把域名解析到 `198.18.0.0/15` 等保留网段，再由代理接管连接。原生 provider 在代理接管前执行地址检查，因此会拒绝该结果。将代理实际使用的 Fake-IP 网段加入 CIDR 白名单即可。
+</details>
+
+<details>
+<summary><strong>修改白名单后需要重启吗？</strong></summary>
+
+不需要。Web 设置保存成功后，下一次 `web_fetch` 会立即读取新策略。只有首次安装、移除或升级插件时，才可能需要按部署方式重新启动 Host。
+</details>
+
+<details>
+<summary><strong>为什么设置卡片是只读的？</strong></summary>
+
+当前浏览器连接不能持久化 Host 设置。请确认你从 Host 本机通过 `127.0.0.1` 或 `localhost` 访问，并检查 Profile 的设置服务是否允许写入。
+</details>
+
+<details>
+<summary><strong>为什么 `*.example.com` 不能访问 `example.com`？</strong></summary>
+
+通配规则只匹配子域名。若两者都需要，请分别加入 `example.com` 和 `*.example.com`。
+</details>
+
+<details>
+<summary><strong>为什么某些跨站跳转会被拒绝？</strong></summary>
+
+插件只自动跟随同源重定向。跨源地址需要由 Agent 对新的 URL 发起一次独立抓取，这可以避免把已验证目标的信任隐式传递给另一个站点。
+</details>
+
+## 开发与贡献
+
+需要二次开发时：
+
+```bash
 pnpm install
-pnpm run typecheck
-pnpm run lint
-pnpm run test
-pnpm run test:coverage
-pnpm run build
 pnpm run check
-~~~
+```
 
-开发时可直接加载与 DeepSeek Harness 内部插件相同的源码 overlay：<code>dsh web --patch ./cordis.source.patch.yml</code>。<code>pnpm run watch</code> 使用 tsdown 持续生成 Host ESM bundle；正式构建先由 TypeScript 生成 <code>lib/types</code>，再由 tsdown 输出 <code>lib/index.js</code>。
-
-测试覆盖 CIDR/域名策略、混合 DNS、NAT64、连接固定、同源重定向、响应限制、取消/超时、Cordis 注册与真实 loopback 传输。
+`pnpm run check` 会执行类型检查、lint、构建、测试与发布包校验。Host bundle 输出到 `lib/index.js`，浏览器 Client bundle 输出到 `lib/client.js`。
 
 ## 许可证与来源
 
-MIT。网络安全模型与部分实现基于 MIT 许可的 DeepSeek Harness <code>@deepseek-ai/dsh-web-fetch-http</code>；详见 [NOTICE](NOTICE)。
+本项目采用 [MIT License](LICENSE)。网络安全模型与部分实现基于 DeepSeek Harness 的 `@deepseek-ai/dsh-web-fetch-http`，详见 [NOTICE](NOTICE)。本项目不是 DeepSeek 官方包，除非发布者另有明确说明。

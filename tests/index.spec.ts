@@ -27,7 +27,7 @@ describe('Cordis plugin entry', () => {
 
   it('registers exactly one fetch provider on ctx.web', () => {
     const registerFetchProvider = vi.fn()
-    const ctx = { web: { registerFetchProvider } } as unknown as Context
+    const ctx = { web: { registerFetchProvider }, inject: vi.fn() } as unknown as Context
     plugin.apply(ctx, { providerId: 'chosen' })
     expect(registerFetchProvider).toHaveBeenCalledTimes(1)
     expect(registerFetchProvider.mock.calls[0]?.[0]).toMatchObject({ id: 'chosen' })

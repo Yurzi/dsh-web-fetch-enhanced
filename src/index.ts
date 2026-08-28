@@ -7,7 +7,8 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import type {} from '@deepseek-ai/dsh-web'
+import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { WebFetchProvider, WebFetchRequest, WebFetchResult } from '@deepseek-ai/dsh-web'
 import { AddressPolicy } from './address-policy.ts'
 import type { HttpFetchLimits } from './provider.ts'
 import { EnhancedHttpFetchProvider } from './provider.ts'
@@ -20,6 +21,9 @@ export const DEFAULT_USER_AGENT = 'dsh-web-fetch-enhanced/0.1.0'
 
 /** Default provider id; select it in the dsh-web row with fetchProvider. */
 export const DEFAULT_PROVIDER_ID = 'http-enhanced'
+
+/** Settings namespace paired with the Web Profile configuration card. */
+export const SETTINGS_NAMESPACE = settingsNamespace('web-fetch-enhanced')
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'web-fetch-enhanced'
@@ -95,9 +99,30 @@ export function createProvider(config: Config = {}): EnhancedHttpFetchProvider {
   )
 }
 
-/** Register the enhanced fetch provider with ctx.web. */
+/** Register the enhanced fetch provider and its live Web Profile settings section. */
 export function apply(ctx: Context, config: Config): void {
-  ctx.web.registerFetchProvider(createProvider(config))
+  const providerId = resolveConfig(config).providerId
+  let current: () => Config = () => config
+
+  installSettingsSection(ctx, SETTINGS_NAMESPACE, Config, config, {
+    setSource: (source) => { current = source },
+    onChange: () => {},
+    validate: (value) => {
+      if (resolveConfig(value).providerId !== providerId) {
+        throw new Error('web-fetch-enhanced: providerId cannot be changed through live settings')
+      }
+      createProvider(value)
+    },
+  })
+
+  const dynamicProvider: WebFetchProvider = {
+    id: providerId,
+    available: () => true,
+    fetch: async (request: WebFetchRequest, signal?: AbortSignal): Promise<WebFetchResult> => {
+      return await createProvider(current()).fetch(request, signal)
+    },
+  }
+  ctx.web.registerFetchProvider(dynamicProvider)
 }
 
 function resolveConfig(config: Config): ResolvedConfig {
