@@ -44,7 +44,23 @@
       "platform": "web"
     }
   },
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "web-fetch",
+    "ssrf",
+    "fake-ip",
+    "allowlist"
+  ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yurzi/dsh-web-fetch-enhanced.git"
+  },
+  "homepage": "https://github.com/Yurzi/dsh-web-fetch-enhanced#readme",
+  "bugs": {
+    "url": "https://github.com/Yurzi/dsh-web-fetch-enhanced/issues"
+  },
   "publishConfig": {
     "access": "public"
   },
