@@ -7,7 +7,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { WebFetchProvider, WebFetchRequest, WebFetchResult } from '@deepseek-ai/dsh-web'
 import { AddressPolicy } from './address-policy.ts'
 import type { HttpFetchLimits } from './provider.ts'
@@ -15,6 +15,8 @@ import { EnhancedHttpFetchProvider } from './provider.ts'
 import { createAllowlistResolver } from './resolver.ts'
 
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647
+const FIBER_DISPOSED = 4
+const FIBER_UNLOADING = 5
 
 /** Explicit product User-Agent used by default. */
 export const DEFAULT_USER_AGENT = 'dsh-web-fetch-enhanced/0.1.0'
@@ -23,7 +25,7 @@ export const DEFAULT_USER_AGENT = 'dsh-web-fetch-enhanced/0.1.0'
 export const DEFAULT_PROVIDER_ID = 'http-enhanced'
 
 /** Settings namespace paired with the Web Profile configuration card. */
-export const SETTINGS_NAMESPACE = settingsNamespace('web-fetch-enhanced')
+export const SETTINGS_NAMESPACE: SettingsNamespace = 'web-fetch-enhanced' as SettingsNamespace
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'web-fetch-enhanced'
@@ -73,6 +75,25 @@ interface ResolvedConfig {
   readonly userAgent: string
 }
 
+interface SettingsProviderSeam {
+  installSection?<T>(
+    owner: Context,
+    ns: SettingsNamespace,
+    schema: z<T>,
+    entry: T,
+    hooks: {
+      setSource: (source: () => T) => void
+      onChange: () => void
+      validate?: (value: T) => void
+    },
+  ): void
+  register<T>(
+    ns: SettingsNamespace,
+    schema: z<T>,
+    options?: { base?: T; validate?: (value: T) => void },
+  ): { get(): T; watch(cb: () => void): () => void }
+}
+
 /** Construct the provider without mounting it, useful for tests and custom compositions. */
 export function createProvider(config: Config = {}): EnhancedHttpFetchProvider {
   const resolved = resolveConfig(config)
@@ -99,20 +120,47 @@ export function createProvider(config: Config = {}): EnhancedHttpFetchProvider {
   )
 }
 
+function isUnloading(ctx: Context): boolean {
+  const state = ctx.fiber?.state
+  return state === FIBER_UNLOADING || state === FIBER_DISPOSED
+}
+
 /** Register the enhanced fetch provider and its live Web Profile settings section. */
 export function apply(ctx: Context, config: Config): void {
   const providerId = resolveConfig(config).providerId
   let current: () => Config = () => config
 
-  installSettingsSection(ctx, SETTINGS_NAMESPACE, Config, config, {
-    setSource: (source) => { current = source },
-    onChange: () => {},
-    validate: (value) => {
-      if (resolveConfig(value).providerId !== providerId) {
-        throw new Error('web-fetch-enhanced: providerId cannot be changed through live settings')
-      }
-      createProvider(value)
-    },
+  ctx.inject(['settings'], (settingsCtx) => {
+    const settings = settingsCtx.settings as unknown as SettingsProviderSeam
+
+    if (typeof settings.installSection === 'function') {
+      settings.installSection(ctx, SETTINGS_NAMESPACE, Config, config, {
+        setSource: (source) => { current = source },
+        onChange: () => {},
+        validate: (value) => {
+          if (resolveConfig(value).providerId !== providerId) {
+            throw new Error('web-fetch-enhanced: providerId cannot be changed through live settings')
+          }
+          createProvider(value)
+        },
+      })
+      return
+    }
+
+    const scope = settings.register(SETTINGS_NAMESPACE, Config, {
+      base: config,
+      validate: (value) => {
+        if (resolveConfig(value).providerId !== providerId) {
+          throw new Error('web-fetch-enhanced: providerId cannot be changed through live settings')
+        }
+        createProvider(value)
+      },
+    })
+    current = () => scope.get()
+    settingsCtx.effect(() => () => {
+      if (isUnloading(ctx)) return
+      current = () => config
+    })
   })
 
   const dynamicProvider: WebFetchProvider = {
