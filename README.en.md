@@ -178,7 +178,7 @@ Most users only need the two allowlists exposed in DSH Web. Manage other values 
 | `maxRedirects` | `5` | Maximum same-origin redirect hops; `0` disables following |
 | `userAgent` | `dsh-web-fetch-enhanced/0.1.0` | User-Agent sent with each request |
 
-The default bundle uses the separate `http-enhanced` provider ID and leaves the native `http` provider installed. For manual composition or drop-in replacement, see:
+The default bundle uses the separate `http-enhanced` provider ID and explicitly disables the native `web-fetch-http` provider to avoid `WEB_PROVIDER_AMBIGUOUS` when subsequent Web plugins (such as search plugins) overwrite `id: web` configuration and unpin `fetchProvider`. For manual composition or drop-in replacement, see:
 
 - [coexisting provider example](examples/coexist.cordis.yml)
 - [drop-in replacement example](examples/drop-in.cordis.yml)

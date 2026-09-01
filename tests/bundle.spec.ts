@@ -75,12 +75,15 @@ describe('installable DSH profile bundle', () => {
     expect(exports.inject).toEqual(['slots', 'locale', 'settingsScope'])
   })
 
-  it('selects the enhanced provider and inserts exactly one Host row', () => {
+  it('disables the native fetch provider, selects the enhanced provider, and inserts exactly one Host row', () => {
     expect(load(patchText)).toEqual([
+      {
+        id: 'web-fetch-http',
+        disabled: true,
+      },
       {
         id: 'web',
         config: {
-          searchProvider: 'deepseek-official',
           fetchProvider: 'http-enhanced',
         },
       },

@@ -1,8 +1,10 @@
 # Manual Host overlay when the package is resolvable but its dsh.bundle layer
 # is not active. Bundle users should use coexist.cordis.yml instead.
+- id: web-fetch-http
+  disabled: true
+
 - id: web
   config:
-    searchProvider: deepseek-official
     fetchProvider: http-enhanced
 
 - insert:

@@ -1,9 +1,10 @@
 # Optional Profile Bundle: select the enhanced HTTP fetch provider on the Host plane.
-# This layer is applied after @deepseek-ai/dsh-base. A patch replaces a row's
-# entire config, so both WebRuntime selector fields are restated here.
+# Disable the native HTTP fetch provider to avoid WEB_PROVIDER_AMBIGUOUS when fetchProvider is unpinned by later bundles.
+- id: web-fetch-http
+  disabled: true
+
 - id: web
   config:
-    searchProvider: deepseek-official
     fetchProvider: http-enhanced
 
 - insert:

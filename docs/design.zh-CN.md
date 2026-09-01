@@ -47,13 +47,13 @@ flowchart LR
 <code>ctx.web</code> 的选择是 ID 驱动而不是注册顺序驱动：
 
 - 配置 <code>fetchProvider: http-enhanced</code> 时只选择本插件默认 ID；
-- 保留原生 <code>http</code> provider 不会产生歧义，因为选择已显式固定；
+- 默认 bundle 会在 Profile 中显式禁用原生的 <code>web-fetch-http</code>，从而在多 Web 插件（如 search 插件）覆盖 <code>id: web</code> config 导致 <code>fetchProvider</code> 未固定时，系统只存在唯一的可用 fetch provider，避免 <code>WEB_PROVIDER_AMBIGUOUS</code>；
 - 未配置 ID 且存在多个可用 provider 时会报 <code>WEB_PROVIDER_AMBIGUOUS</code>；
 - 两个 provider 注册相同 ID 会立即报 <code>WEB_DUPLICATE_PROVIDER</code>。
 
 所以“覆盖原生”有两种明确模式：
 
-1. 推荐模式：本插件使用 <code>http-enhanced</code>，修改现有 web 行的 <code>fetchProvider</code>；
+1. 推荐模式：本插件使用 <code>http-enhanced</code>，修改现有 web 行的 <code>fetchProvider</code> 并禁用原生 <code>web-fetch-http</code>（由随包附带的 <code>cordis.patch.yml</code> 自动处理）；
 2. drop-in 模式：禁用原生 provider，本插件配置 <code>providerId: http</code>。
 
 不存在 last-wins 或自动 fallback。

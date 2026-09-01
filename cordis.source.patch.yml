@@ -1,9 +1,11 @@
 # Source overlay for plugin development. Relative entries are anchored to this
 # file and run through the DeepSeek Harness CLI's tsx loader.
+# Disable the native HTTP fetch provider to avoid WEB_PROVIDER_AMBIGUOUS when fetchProvider is unpinned by later bundles.
+- id: web-fetch-http
+  disabled: true
 
 - id: web
   config:
-    searchProvider: deepseek-official
     fetchProvider: http-enhanced
 
 - insert:

@@ -178,7 +178,7 @@ wiki.corp.example
 | `maxRedirects` | `5` | 同源重定向最大跳数；`0` 表示不跟随 |
 | `userAgent` | `dsh-web-fetch-enhanced/0.1.0` | 每个请求使用的 User-Agent |
 
-默认安装采用独立的 `http-enhanced` provider ID，并保留原生 `http` provider。需要手动组合或 drop-in 替换时，参考：
+默认安装（通过 bundle `cordis.patch.yml`）采用独立的 `http-enhanced` provider ID，并显式禁用原生的 `web-fetch-http`，以避免后续其他 Web 插件（如 search 插件）覆盖 `id: web` 的 config 时因 `fetchProvider` 变成未指定而触发 `WEB_PROVIDER_AMBIGUOUS`。需要自定义组合或 drop-in 替换时，参考：
 
 - [独立 provider 示例](examples/coexist.cordis.yml)
 - [drop-in 替换示例](examples/drop-in.cordis.yml)
