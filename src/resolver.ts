@@ -2,7 +2,7 @@ import { lookup as systemLookup } from 'node:dns/promises'
 import type { LookupAddress, LookupOptions } from 'node:dns'
 import { isIP } from 'node:net'
 import ipaddr from 'ipaddr.js'
-import type { Response } from 'undici'
+import type { Dispatcher, Response } from 'undici'
 import { WebError } from '@deepseek-ai/dsh-web'
 import { AddressPolicy, stripIpv6Brackets } from './address-policy.ts'
 
@@ -141,6 +141,30 @@ function embeddedIpv4Address(
   ].join('.')
 }
 
+/** Result of resolving a URL through the outbound proxy policy. */
+export type ProxyRouteResult =
+  | { readonly proxied: true; readonly dispatcher: Dispatcher }
+  | { readonly proxied: false; readonly dispatcher?: undefined }
+
+/** Function deciding whether a URL should be routed through an outbound proxy. */
+export type ProxyRouteResolver = (
+  url: URL,
+) => Promise<ProxyRouteResult> | ProxyRouteResult
+
+/**
+ * Default proxy route resolver: safely resolves proxy route via @deepseek-ai/dsh-http-proxy if available,
+ * gracefully degrading to direct routing if the module is absent.
+ */
+export async function defaultProxyRoute(url: URL): Promise<ProxyRouteResult> {
+  try {
+    const { proxyRouteFor } = await import('@deepseek-ai/dsh-http-proxy')
+    const route = proxyRouteFor(url)
+    return route.proxied ? { proxied: true, dispatcher: route.dispatcher } : { proxied: false }
+  } catch {
+    return { proxied: false }
+  }
+}
+
 /** Fetch while preserving the URL hostname for Host and TLS SNI. */
 export async function requestPinned(
   url: URL,
@@ -149,17 +173,36 @@ export async function requestPinned(
   signal: AbortSignal,
 ): Promise<PinnedResponse> {
   const { Agent, fetch } = await import('undici')
+  // proxy-exempt: pinning one request's validated addresses, on a URL the policy routes directly.
   const dispatcher = new Agent({
     autoSelectFamily: true,
     connect: { lookup: createPinnedLookup(addresses) },
   })
   try {
+    // proxy-exempt: the agent above, whose lifetime is this one request.
     const response = await fetch(url, { method: 'GET', redirect: 'manual', headers, signal, dispatcher })
     return { response, close: async () => { await dispatcher.close() } }
   } catch (error: unknown) {
     await dispatcher.close()
     throw error
   }
+}
+
+/**
+ * Fetch through the dispatcher the proxy policy already installed, letting the proxy resolve the origin.
+ * No address set is pinned because the proxy performs the lookup. The dispatcher is process-wide,
+ * so connections are pooled and the caller does not close it.
+ */
+export async function requestVia(
+  dispatcher: Dispatcher,
+  url: URL,
+  headers: Record<string, string>,
+  signal: AbortSignal,
+): Promise<PinnedResponse> {
+  const { fetch } = await import('undici')
+  // proxy-exempt: the dispatcher is the installed policy's own, handed over by proxyRouteFor.
+  const response = await fetch(url, { method: 'GET', redirect: 'manual', headers, signal, dispatcher })
+  return { response, close: () => Promise.resolve() }
 }
 
 type LookupCallback = (

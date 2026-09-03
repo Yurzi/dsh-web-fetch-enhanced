@@ -2,8 +2,9 @@ import { WebError } from '@deepseek-ai/dsh-web'
 import type { WebFetchBody, WebFetchProvider, WebFetchRequest, WebFetchResult } from '@deepseek-ai/dsh-web'
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { Response } from 'undici'
-import type { FetchResolver } from './resolver.ts'
-import { requestPinned } from './resolver.ts'
+import { isNonPublicIpLiteral } from './address-policy.ts'
+import type { FetchResolver, ProxyRouteResolver } from './resolver.ts'
+import { defaultProxyRoute, requestPinned, requestVia } from './resolver.ts'
 import { classifyContentType, decoderForCharset, isSameOrigin, parseCharset, validateFetchUrl } from './policy.ts'
 
 /** Resolved transport and response limits. */
@@ -21,6 +22,7 @@ export class EnhancedHttpFetchProvider implements WebFetchProvider {
     readonly id: string,
     private readonly limits: HttpFetchLimits,
     private readonly resolveAddresses: FetchResolver,
+    private readonly resolveProxy: ProxyRouteResolver = defaultProxyRoute,
   ) {}
 
   available(): boolean {
@@ -85,12 +87,17 @@ export class EnhancedHttpFetchProvider implements WebFetchProvider {
   }
 
   private async requestOnce(url: URL, signal: AbortSignal) {
+    const headers = {
+      'user-agent': this.limits.userAgent,
+      'accept': 'text/html,application/xhtml+xml,text/*;q=0.9,application/json;q=0.8',
+    }
     try {
+      const route = await this.resolveProxy(url)
+      if (route.proxied && route.dispatcher && !isNonPublicIpLiteral(url.hostname)) {
+        return await requestVia(route.dispatcher, url, headers, signal)
+      }
       const addresses = await this.resolveAddresses(url.hostname, signal)
-      return await requestPinned(url, addresses, {
-        'user-agent': this.limits.userAgent,
-        'accept': 'text/html,application/xhtml+xml,text/*;q=0.9,application/json;q=0.8',
-      }, signal)
+      return await requestPinned(url, addresses, headers, signal)
     } catch (error: unknown) {
       if (error instanceof WebError) throw error
       throw translateAbortOrNetwork(error, signal)

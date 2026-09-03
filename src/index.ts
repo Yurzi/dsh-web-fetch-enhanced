@@ -12,6 +12,7 @@ import type { WebFetchProvider, WebFetchRequest, WebFetchResult } from '@deepsee
 import { AddressPolicy } from './address-policy.ts'
 import type { HttpFetchLimits } from './provider.ts'
 import { EnhancedHttpFetchProvider } from './provider.ts'
+import type { ProxyRouteResolver } from './resolver.ts'
 import { createAllowlistResolver } from './resolver.ts'
 
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647
@@ -95,7 +96,10 @@ interface SettingsProviderSeam {
 }
 
 /** Construct the provider without mounting it, useful for tests and custom compositions. */
-export function createProvider(config: Config = {}): EnhancedHttpFetchProvider {
+export function createProvider(
+  config: Config = {},
+  proxyResolver?: ProxyRouteResolver,
+): EnhancedHttpFetchProvider {
   const resolved = resolveConfig(config)
   assertProviderId(resolved.providerId)
   assertPositiveFinite('maxResponseBytes', resolved.maxResponseBytes)
@@ -117,8 +121,13 @@ export function createProvider(config: Config = {}): EnhancedHttpFetchProvider {
     resolved.providerId,
     limits,
     createAllowlistResolver(policy),
+    proxyResolver,
   )
 }
+
+export { isNonPublicIpLiteral } from './address-policy.ts'
+export type { ProxyRouteResolver, ProxyRouteResult } from './resolver.ts'
+export { defaultProxyRoute } from './resolver.ts'
 
 function isUnloading(ctx: Context): boolean {
   const state = ctx.fiber?.state

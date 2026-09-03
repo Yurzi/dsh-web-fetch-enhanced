@@ -73,6 +73,18 @@ export function isPublicIpAddress(input: string): boolean {
   return parsed !== undefined && isPublicAddress(parsed)
 }
 
+/**
+ * Whether a hostname is an IP literal that resolves to a non-public address.
+ *
+ * A proxied hop skips address resolution because the proxy resolves the origin,
+ * but an IP literal needs no resolution. Handing an unverified non-public literal
+ * to a proxy would risk reaching loopback or private services (SSRF).
+ */
+export function isNonPublicIpLiteral(hostname: string): boolean {
+  const unbracketed = stripIpv6Brackets(hostname)
+  return isIP(unbracketed) !== 0 && !isPublicIpAddress(unbracketed)
+}
+
 function isPublicAddress(address: IpAddress): boolean {
   return address.range() === 'unicast'
 }

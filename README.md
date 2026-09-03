@@ -29,7 +29,13 @@ DeepSeek Harness 原生 HTTP provider 默认拒绝所有非公网地址，这是
 - **重定向逐跳复核**：仅跟随同源重定向，并在每一跳重新解析、校验和固定地址；
 - **受限匿名请求**：只发送无 Cookie、无 Authorization、无 URL 凭据的 GET 请求；
 - **完整资源上限**：限制 URL、响应字节、解码字符、重定向次数和超时时间；
-- **IPv4 / IPv6 防护**：覆盖 IPv4-mapped IPv6 与活动 DNS64 / NAT64 目标检查。
+- **IPv4 / IPv6 防护**：覆盖 IPv4-mapped IPv6 与活动 DNS64 / NAT64 目标检查；
+- **全局出站代理协同**：无缝对接 DSH 全局 HTTP 代理路由（`HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` / `NO_PROXY`），同时严格禁止非公网 IP 字面量越权走代理，杜绝内网 SSRF 风险。
+
+## 版本兼容性与支持策略
+
+- **最低支持的 DSH 版本**：`0.1.2-rc.1`
+- **版本支持策略**：本插件**仅对 DeepSeek Harness 的 RC（Release Candidate）候选发布版本及后续稳定正式版提供支持**。由于 Alpha 或开发快照版本更迭频繁且缺乏稳定的 API 保证，本插件不再对 Alpha 等非 RC 阶段版本进行维护与适配。
 
 ## 快速开始
 

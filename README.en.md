@@ -29,7 +29,13 @@ With an empty CIDR allowlist, the security boundary remains equivalent to the na
 - **Redirect revalidation** — same-origin redirects are resolved, validated, and pinned again at every hop;
 - **Anonymous bounded GET requests** — no cookies, Authorization header, or URL credentials;
 - **Resource limits** — URL length, response bytes, decoded characters, redirects, and time are bounded;
-- **IPv4 and IPv6 coverage** — including IPv4-mapped IPv6 and active DNS64 / NAT64 checks.
+- **IPv4 and IPv6 coverage** — including IPv4-mapped IPv6 and active DNS64 / NAT64 checks;
+- **Outbound HTTP proxy alignment** — seamlessly respects DSH global proxy routes (`HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` / `NO_PROXY`), while refusing unvalidated private IP literals from bypassing address checks through the proxy.
+
+## Compatibility & Support Policy
+
+- **Minimum Supported DSH Version**: `0.1.2-rc.1`
+- **Support Policy**: This plugin **only supports DeepSeek Harness RC (Release Candidate) releases and future stable releases**. Compatibility is not maintained for rapid-moving Alpha or development snapshot versions.
 
 ## Quick start
 
