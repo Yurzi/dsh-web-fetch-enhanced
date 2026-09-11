@@ -40,7 +40,7 @@ flowchart LR
 
 本插件是 Host 侧 provider：它消费已有的 <code>web</code> 服务并注册一个 fetch provider，但不发布新的 Cordis 服务。因此它属于 Host composition，不属于 agent preset。模型工具仍由 preset 中原有的 <code>tool-web</code> 行提供。
 
-入口采用 namespace plugin 约定，只命名导出 <code>name</code>、<code>inject</code>、<code>Config</code>、安全的 <code>createProvider</code> 和 <code>apply</code>，没有 default export，也不公开低级 pinned transport/custom resolver helper。与 DeepSeek Harness 内部插件一致，源码使用显式 <code>.ts</code> 相对导入，<code>cordis.source.patch.yml</code> 在开发时直接加载源码；发布构建由 TypeScript 生成 <code>lib/types</code>，再由 tsdown 分别输出 Host ESM <code>lib/index.js</code> 和浏览器 Client ESM <code>lib/client.js</code>。Client face 以 <code>web-fetch-enhanced</code> 命名空间键向 <code>settings.plugin.item</code> 注册白名单卡片；Host face 通过 <code>installSettingsSection</code> 将 Profile composition 作为 base layer，并让 provider 在每次请求时读取最新 resolved section。随包发布的 <code>cordis.patch.yml</code> 供操作者显式合并到 Profile composition。
+入口采用 namespace plugin 约定，只命名导出 <code>name</code>、<code>inject</code>、<code>Config</code>、安全的 <code>createProvider</code> 和 <code>apply</code>，没有 default export，也不公开低级 pinned transport/custom resolver helper。与 DeepSeek Harness 内部插件一致，源码使用显式 <code>.ts</code> 相对导入，<code>cordis.source.patch.yml</code> 在开发时直接加载源码；发布构建由 TypeScript 生成 <code>lib/types</code>，再由 tsdown 分别输出 Host ESM <code>lib/index.js</code> 和浏览器 Client ESM <code>lib/client.js</code>。Client face 以 <code>web-fetch-enhanced</code> 命名空间键向 <code>settings.plugin.item</code> 注册白名单卡片；Host face 通过 <code>settings.installSection</code> 将 Profile composition 作为 base layer，并让 provider 在每次请求时读取最新 resolved section。随包发布的 <code>cordis.patch.yml</code> 供操作者显式合并到 Profile composition。
 
 ## 3. Provider 选择
 
@@ -100,6 +100,20 @@ flowchart LR
 
 ## 6. 配置与生命周期
 
+### 6.1 三层配置层级与解析机制
+DeepSeek Harness 采用严格的三层分层解析架构：
+1. **Schema 默认层 (Schema Defaults)**：由 <code>Config</code> (Schemastery) 声明全部字段的基线默认值；
+2. **组合层 (Base Layer)**：由 Profile 组合（如 <code>cordis.patch.yml</code>）提供环境级配置；
+3. **用户覆盖层 (User Layer)**：存储于 <code>$DSH_HOME/settings.yaml</code>，专用于持久化用户覆盖。
+
+运行时通过 <code>settings.installSection</code> 接入系统，未在用户层覆盖的字段自动透明回退至默认值，无需在配置文件中全量平铺。
+
+### 6.2 稀疏持久化与存量冗余自愈 (Sparse Save & Legacy Prune)
+Client 端设置卡片采用稀疏持久化模式，使用 <code>scope.mutate()</code> 进行单次原子化变更提交：
+- **按需写入**：仅当输入非空时执行 <code>set</code> 操作；输入为空或等于默认值时执行 <code>unset</code>，从底层 YAML 中彻底删除键名，避免 <code>settings.yaml</code> 膨胀；
+- **存量自愈**：自动检测用户层中历史版本遗留的冗余默认项（如 <code>allowHostnames: []</code>），并在保存时自动追加 <code>unset</code> 将其修剪清除。
+
+### 6.3 启动阶段校验
 Cordis Config schema 提供所有默认值；<code>createProvider()</code> 也在直接调用时应用同一默认值。启动阶段校验：
 
 - provider ID 字符集和长度；

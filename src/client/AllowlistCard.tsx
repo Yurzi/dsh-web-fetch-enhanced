@@ -12,27 +12,102 @@ export interface AllowlistCardProps {
   t: (key: LocaleKey) => string
 }
 
-function formatLines(value: readonly string[] | undefined): string {
+export type SettingsPathOp =
+  | { op: 'set'; path: string[]; value: string[] }
+  | { op: 'unset'; path: string[] }
+
+export function formatLines(value: readonly string[] | undefined): string {
   return (value ?? []).join('\n')
 }
 
-function layerValues(layer: unknown, field: keyof AllowlistSettings): string[] | undefined {
+export function layerValues(layer: unknown, field: keyof AllowlistSettings): string[] | undefined {
   if (typeof layer !== 'object' || layer === null) return undefined
   const value = Reflect.get(layer, field)
   return Array.isArray(value) && value.every(entry => typeof entry === 'string') ? value : undefined
 }
 
-function hasLayerField(layer: unknown, field: keyof AllowlistSettings): boolean {
+export function hasLayerField(layer: unknown, field: keyof AllowlistSettings): boolean {
   return typeof layer === 'object' && layer !== null && Object.prototype.hasOwnProperty.call(layer, field)
 }
 
-function equalValues(actual: string[] | undefined, expected: readonly string[]): boolean {
+export function equalValues(actual: string[] | undefined, expected: readonly string[]): boolean {
   return actual !== undefined && actual.length === expected.length && actual.every((value, index) => value === expected[index])
+}
+
+export function isRedundantUserField(user: unknown, field: keyof AllowlistSettings): boolean {
+  if (!hasLayerField(user, field)) return false
+  const val = layerValues(user, field)
+  return Array.isArray(val) && val.length === 0
 }
 
 export function parseLines(text: string): { values: string[]; duplicate: boolean } {
   const values = text.split(/\r?\n/u).map(line => line.trim()).filter(Boolean)
   return { values: [...new Set(values)], duplicate: new Set(values).size !== values.length }
+}
+
+export function buildSaveOps(
+  input: { cidrs: readonly string[]; hostnames: readonly string[] },
+  user?: unknown,
+  resetToProfile?: boolean,
+): SettingsPathOp[] {
+  if (resetToProfile) {
+    return [
+      { op: 'unset', path: ['allowCidrs'] },
+      { op: 'unset', path: ['allowHostnames'] },
+    ]
+  }
+
+  const ops: SettingsPathOp[] = []
+
+  // Prune or update allowCidrs:
+  // Set when non-empty; if empty or if user layer contains redundant defaults, unset to prune.
+  if (input.cidrs.length > 0) {
+    ops.push({ op: 'set', path: ['allowCidrs'], value: [...input.cidrs] })
+  } else if (input.cidrs.length === 0 || isRedundantUserField(user, 'allowCidrs')) {
+    ops.push({ op: 'unset', path: ['allowCidrs'] })
+  }
+
+  // Prune or update allowHostnames:
+  // Set when non-empty; if empty or if user layer contains redundant defaults, unset to prune.
+  if (input.hostnames.length > 0) {
+    ops.push({ op: 'set', path: ['allowHostnames'], value: [...input.hostnames] })
+  } else if (input.hostnames.length === 0 || isRedundantUserField(user, 'allowHostnames')) {
+    ops.push({ op: 'unset', path: ['allowHostnames'] })
+  }
+
+  return ops
+}
+
+export function checkAccepted(user: unknown, ops: readonly SettingsPathOp[]): boolean {
+  return ops.every(op => {
+    const field = op.path[0] as keyof AllowlistSettings
+    if (op.op === 'set') {
+      return equalValues(layerValues(user, field), op.value)
+    }
+    return !hasLayerField(user, field)
+  })
+}
+
+export interface DirtyCheckParams {
+  cidrs: string
+  hostnames: string
+  resolvedCidrs: string
+  resolvedHostnames: string
+  user?: unknown
+  resetToProfile?: boolean
+  dismissedPrune?: boolean
+}
+
+export function isDirty(params: DirtyCheckParams): boolean {
+  if (params.resetToProfile) return true
+  if (params.cidrs !== params.resolvedCidrs || params.hostnames !== params.resolvedHostnames) return true
+  if (params.dismissedPrune) return false
+  const parsedCidrs = parseLines(params.cidrs)
+  const parsedHostnames = parseLines(params.hostnames)
+  // Check if an unset is needed to prune redundant default values or user overrides that should be cleared
+  if (hasLayerField(params.user, 'allowCidrs') && parsedCidrs.values.length === 0) return true
+  if (hasLayerField(params.user, 'allowHostnames') && parsedHostnames.values.length === 0) return true
+  return false
 }
 
 // The configurable-plugins surface owns no card chrome, so an external plugin
@@ -51,6 +126,7 @@ export function AllowlistCard({ scope, t }: AllowlistCardProps) {
   const [failed, setFailed] = useState(false)
   const [hasDraft, setHasDraft] = useState(false)
   const [resetToProfile, setResetToProfile] = useState(false)
+  const [dismissedPrune, setDismissedPrune] = useState(false)
   const bodyId = useId()
   const cidrsHintId = useId()
   const hostnamesHintId = useId()
@@ -64,7 +140,15 @@ export function AllowlistCard({ scope, t }: AllowlistCardProps) {
 
   const parsedCidrs = useMemo(() => parseLines(cidrs), [cidrs])
   const parsedHostnames = useMemo(() => parseLines(hostnames), [hostnames])
-  const dirty = resetToProfile || cidrs !== resolvedCidrs || hostnames !== resolvedHostnames
+  const dirty = isDirty({
+    cidrs,
+    hostnames,
+    resolvedCidrs,
+    resolvedHostnames,
+    user: snapshot.user,
+    resetToProfile,
+    dismissedPrune,
+  })
   const invalid = parsedCidrs.duplicate || parsedHostnames.duplicate
   const disabled = snapshot.status !== 'ready' || !snapshot.writable || saving
 
@@ -74,18 +158,14 @@ export function AllowlistCard({ scope, t }: AllowlistCardProps) {
     setFailed(false)
     let accepted = false
     try {
-      if (resetToProfile) {
-        await scope.unset('allowCidrs')
-        await scope.unset('allowHostnames')
-        const user = scope.getSnapshot().user
-        accepted = !hasLayerField(user, 'allowCidrs') && !hasLayerField(user, 'allowHostnames')
-      } else {
-        await scope.set('allowCidrs', parsedCidrs.values)
-        await scope.set('allowHostnames', parsedHostnames.values)
-        const user = scope.getSnapshot().user
-        accepted = equalValues(layerValues(user, 'allowCidrs'), parsedCidrs.values)
-          && equalValues(layerValues(user, 'allowHostnames'), parsedHostnames.values)
-      }
+      const ops = buildSaveOps(
+        { cidrs: parsedCidrs.values, hostnames: parsedHostnames.values },
+        snapshot.user,
+        resetToProfile,
+      )
+      await scope.mutate(ops)
+      const user = scope.getSnapshot().user
+      accepted = checkAccepted(user, ops)
     } catch {
       accepted = false
     } finally {
@@ -94,6 +174,7 @@ export function AllowlistCard({ scope, t }: AllowlistCardProps) {
     if (accepted) {
       setHasDraft(false)
       setResetToProfile(false)
+      setDismissedPrune(false)
       setOpen(false)
     } else {
       setFailed(true)
@@ -114,6 +195,7 @@ export function AllowlistCard({ scope, t }: AllowlistCardProps) {
     setHostnames(resolvedHostnames)
     setResetToProfile(false)
     setHasDraft(false)
+    setDismissedPrune(true)
     setFailed(false)
   }
 
@@ -155,6 +237,7 @@ export function AllowlistCard({ scope, t }: AllowlistCardProps) {
             const value = event.target.value
             setCidrs(value)
             setResetToProfile(false)
+            setDismissedPrune(false)
             setHasDraft(value !== resolvedCidrs || hostnames !== resolvedHostnames)
             setFailed(false)
           }}
@@ -179,6 +262,7 @@ export function AllowlistCard({ scope, t }: AllowlistCardProps) {
             const value = event.target.value
             setHostnames(value)
             setResetToProfile(false)
+            setDismissedPrune(false)
             setHasDraft(cidrs !== resolvedCidrs || value !== resolvedHostnames)
             setFailed(false)
           }}

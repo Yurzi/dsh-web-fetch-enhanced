@@ -150,12 +150,25 @@ wiki.corp.example
 
 ## 设置页按钮说明
 
-- **保存**：把当前草稿写入用户设置层；
+- **保存**：把当前配置按需保存到用户设置层。本插件采用**稀疏按需持久化 (Sparse Save)**：仅对填写了内容的字段执行 `set`，留空字段自动执行 `unset`，避免在 `$DSH_HOME/settings.yaml` 中写入 `[]` 等冗余默认值；同时会自动检测并自愈存量配置中的空数组冗余项；
 - **放弃修改**：丢弃尚未保存的编辑，恢复当前生效值；
 - **重置为 Profile 配置**：把“删除 `allowCidrs` 和 `allowHostnames` 用户覆盖、重新继承 Profile composition”的操作加入草稿；仍需点击“保存”才会生效；
 - **只读状态**：当前连接没有持久化 Host Profile 设置的权限。通常应从 Host 本机的 loopback 地址打开 Web GUI。
 
-“保存空列表”和“重置为 Profile 配置”含义不同：前者显式覆盖为空，后者恢复继承。
+## 配置层级与稀疏覆盖规范
+
+DeepSeek Harness 采用清晰的三层配置管理机制：
+
+1. **Schema 默认层 (Schema Defaults)**：在插件代码中声明的底层类型与默认值（如 `allowCidrs: []`、`allowHostnames: []`、`timeoutMs: 30,000`）。所有未显式配置的选项均在此层兜底。
+2. **基础 / 组合层 (Base / Composition Layer)**：由 Profile 组合（如随包发布的 `cordis.patch.yml` 或用户自定义的 Profile `cordis.yml`）提供的环境级配置。
+3. **用户覆盖层 (User Layer)**：存储在 `$DSH_HOME/settings.yaml` 中的用户级覆盖配置，优先级最高。
+
+### 稀疏覆盖设计 (Sparse Override)
+
+`$DSH_HOME/settings.yaml` 是纯粹的**稀疏覆盖层**：
+- **无需填写默认值**：用户仅需写入与默认行为不同的自定义选项。请勿在 `settings.yaml` 中显式写入 `allowHostnames: []`、`allowCidrs: []` 等冗余的空数组或默认配置，保持配置文件干净清爽。
+- **前端自动瘦身与自愈 (Sparse Save & Legacy Prune)**：Web 设置卡片保存时会自动进行稀疏持久化——只对有内容的项发起 `set`，留空项则发起 `unset`；如果用户的 `settings.yaml` 中遗留了历史版本写入的空数组等冗余默认值，保存时会自动自愈并移除（`unset`）该项，实现配置文件自动瘦身。
+- **最小化配置原则**：所有配置示例均遵循最小化原则，避免冗余配置引入维护负担。
 
 ## 安全提示
 

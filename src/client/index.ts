@@ -31,5 +31,5 @@ export function apply(ctx: Context): void {
   }, AllowlistCard))
 }
 
-export { AllowlistCard, parseLines } from './AllowlistCard.tsx'
-export type { AllowlistCardProps, AllowlistSettings } from './AllowlistCard.tsx'
+export { AllowlistCard, parseLines, buildSaveOps, checkAccepted, isDirty, isRedundantUserField, hasLayerField, layerValues, equalValues } from './AllowlistCard.tsx'
+export type { AllowlistCardProps, AllowlistSettings, SettingsPathOp, DirtyCheckParams } from './AllowlistCard.tsx'

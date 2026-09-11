@@ -150,12 +150,25 @@ Allow only the smallest range you actually need. Do not add all RFC 1918 space f
 
 ## Settings actions
 
-- **Save** writes the current draft to the user settings layer.
+- **Save** persists the current configuration to the user settings layer. The card uses **sparse on-demand persistence (Sparse Save)**: only non-empty fields trigger a `set`, while empty fields trigger an `unset`. This prevents writing redundant defaults like `[]` into `$DSH_HOME/settings.yaml` and automatically cleans up legacy redundant empty arrays upon save.
 - **Discard** drops unsaved edits and restores the effective values.
 - **Reset to Profile** stages removal of the user overrides for `allowCidrs` and `allowHostnames`, restoring Profile inheritance after you choose **Save**.
 - A **read-only** card means the current connection cannot persist Host Profile settings. Normally, open DSH Web from a loopback address on the Host.
 
-Saving explicit empty lists is different from resetting: empty lists override the Profile with nothing, while reset restores inheritance.
+## Configuration Hierarchy & Sparse Overrides
+
+DeepSeek Harness uses a 3-tier configuration hierarchy:
+
+1. **Schema Defaults**: Inherent defaults declared in plugin code via Schemastery `z.default(...)` (e.g. `allowCidrs: []`, `allowHostnames: []`, `timeoutMs: 30,000`).
+2. **Base / Composition Layer**: Environment-level composition provided by Profile bundles (e.g. `cordis.patch.yml` or the user's Profile `cordis.yml`).
+3. **User Layer**: User-specific configuration persisted in `$DSH_HOME/settings.yaml`, taking top precedence.
+
+### Sparse Override Design
+
+`$DSH_HOME/settings.yaml` is strictly a **sparse override layer**:
+- **Do not write default values**: Users only need to declare options that differ from defaults. Avoid explicitly writing redundant default values such as `allowHostnames: []` or `allowCidrs: []` into `settings.yaml`.
+- **Sparse save & legacy self-healing**: When saving via the Web settings card, empty allowlist fields automatically trigger `unset` operations instead of writing `[]`, preventing configuration bloating. If legacy redundant keys (e.g., empty arrays from older versions) already exist in the user layer, saving will automatically prune and clean them up.
+- **Minimal configuration**: Configuration examples should remain minimal, clean, and free of redundant defaults.
 
 ## Security guidance
 
