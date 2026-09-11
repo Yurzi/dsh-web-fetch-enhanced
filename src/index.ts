@@ -95,6 +95,34 @@ interface SettingsProviderSeam {
   ): { get(): T; watch(cb: () => void): () => void }
 }
 
+interface SystemPromptSeam {
+  section(section: {
+    name: string
+    order: number
+    text: string | ((context?: unknown) => string)
+  }): () => void
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    systemPrompt?: SystemPromptSeam
+  }
+  interface Events {
+    'system-prompt/change'(): void
+  }
+}
+
+/** Build prompt guidance copy informing the model of authorized non-public destinations. */
+export function formatAllowlistPrompt(config: Config): string {
+  const cidrs = config.allowCidrs ?? []
+  const hostnames = config.allowHostnames ?? []
+  if (cidrs.length === 0 && hostnames.length === 0) return ''
+  const items: string[] = []
+  if (cidrs.length > 0) items.push(`CIDRs: ${cidrs.join(', ')}`)
+  if (hostnames.length > 0) items.push(`hostnames: ${hostnames.join(', ')}`)
+  return `The operator has explicitly authorized web_fetch access to the following non-public destinations: [${items.join('; ')}]. You can safely fetch these endpoints.`
+}
+
 /** Construct the provider without mounting it, useful for tests and custom compositions. */
 export function createProvider(
   config: Config = {},
@@ -145,7 +173,9 @@ export function apply(ctx: Context, config: Config): void {
     if (typeof settings.installSection === 'function') {
       settings.installSection(ctx, SETTINGS_NAMESPACE, Config, config, {
         setSource: (source) => { current = source },
-        onChange: () => {},
+        onChange: () => {
+          ctx.emit('system-prompt/change')
+        },
         validate: (value) => {
           if (resolveConfig(value).providerId !== providerId) {
             throw new Error('web-fetch-enhanced: providerId cannot be changed through live settings')
@@ -169,6 +199,16 @@ export function apply(ctx: Context, config: Config): void {
     settingsCtx.effect(() => () => {
       if (isUnloading(ctx)) return
       current = () => config
+      ctx.emit('system-prompt/change')
+    })
+  })
+
+  ctx.inject(['systemPrompt'], (promptCtx) => {
+    const systemPrompt = promptCtx.systemPrompt as unknown as SystemPromptSeam
+    systemPrompt.section({
+      name: 'web-fetch-enhanced:allowlist',
+      order: 2105,
+      text: () => formatAllowlistPrompt(current()),
     })
   })
 

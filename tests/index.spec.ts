@@ -1,4 +1,4 @@
-import { Context } from '@deepseek-ai/cordis'
+import { Context, Service } from '@deepseek-ai/cordis'
 import WebRuntime from '@deepseek-ai/dsh-web'
 import { describe, expect, it, vi } from 'vitest'
 import * as plugin from '../src/index.ts'
@@ -51,5 +51,53 @@ describe('Cordis plugin entry', () => {
     await expect(ctx.web.fetch({ url: 'http://127.0.0.1/' }))
       .rejects.toMatchObject({ code: 'WEB_PROVIDER_CONFIGURED_MISSING' })
     await webFiber.dispose()
+  })
+
+  it('formats allowlist prompt guidance correctly', () => {
+    expect(plugin.formatAllowlistPrompt({})).toBe('')
+    expect(plugin.formatAllowlistPrompt({ allowCidrs: [] })).toBe('')
+    expect(plugin.formatAllowlistPrompt({ allowCidrs: ['10.0.0.0/8'] }))
+      .toContain('CIDRs: 10.0.0.0/8')
+    expect(plugin.formatAllowlistPrompt({ allowHostnames: ['internal.corp'] }))
+      .toContain('hostnames: internal.corp')
+    const full = plugin.formatAllowlistPrompt({
+      allowCidrs: ['10.0.0.0/8', '192.168.0.0/16'],
+      allowHostnames: ['*.internal.corp'],
+    })
+    expect(full).toContain('CIDRs: 10.0.0.0/8, 192.168.0.0/16')
+    expect(full).toContain('hostnames: *.internal.corp')
+    expect(full).toContain('The operator has explicitly authorized web_fetch access')
+  })
+
+  it('registers systemPrompt section dynamically when systemPrompt service is available', async () => {
+    const registeredSections: Array<{ name: string; order: number; text: () => string }> = []
+    const section = vi.fn((sec: { name: string; order: number; text: () => string }) => {
+      registeredSections.push(sec)
+      return () => {}
+    })
+
+    class MockPromptService extends Service {
+      constructor(c: Context) {
+        super(c, 'systemPrompt')
+      }
+      section(sec: { name: string; order: number; text: () => string }) {
+        return section(sec)
+      }
+    }
+
+    const ctx = new Context()
+    await ctx.plugin(WebRuntime, { fetchProvider: 'http-enhanced' })
+    const promptFiber = ctx.plugin(MockPromptService)
+    await promptFiber.await()
+
+    const fiber = ctx.plugin(plugin, {
+      allowCidrs: ['10.0.0.0/8'],
+    })
+    await fiber.await()
+
+    expect(section).toHaveBeenCalledTimes(1)
+    expect(registeredSections[0]?.name).toBe('web-fetch-enhanced:allowlist')
+    expect(registeredSections[0]?.order).toBe(2105)
+    expect(registeredSections[0]?.text()).toContain('CIDRs: 10.0.0.0/8')
   })
 })

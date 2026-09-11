@@ -3,6 +3,7 @@ import type { LookupAddress, LookupOptions } from 'node:dns'
 import { isIP } from 'node:net'
 import ipaddr from 'ipaddr.js'
 import type { Dispatcher, Response } from 'undici'
+import { proxyRouteFor, type ProxyRoute } from '@deepseek-ai/dsh-http-proxy'
 import { WebError } from '@deepseek-ai/dsh-web'
 import { AddressPolicy, stripIpv6Brackets } from './address-policy.ts'
 
@@ -152,17 +153,11 @@ export type ProxyRouteResolver = (
 ) => Promise<ProxyRouteResult> | ProxyRouteResult
 
 /**
- * Default proxy route resolver: safely resolves proxy route via @deepseek-ai/dsh-http-proxy if available,
- * gracefully degrading to direct routing if the module is absent.
+ * Default proxy route resolver: resolves proxy route via @deepseek-ai/dsh-http-proxy.
  */
-export async function defaultProxyRoute(url: URL): Promise<ProxyRouteResult> {
-  try {
-    const { proxyRouteFor } = await import('@deepseek-ai/dsh-http-proxy')
-    const route = proxyRouteFor(url)
-    return route.proxied ? { proxied: true, dispatcher: route.dispatcher } : { proxied: false }
-  } catch {
-    return { proxied: false }
-  }
+export function defaultProxyRoute(url: URL): ProxyRouteResult {
+  const route: ProxyRoute = proxyRouteFor(url)
+  return route.proxied ? { proxied: true, dispatcher: route.dispatcher } : { proxied: false }
 }
 
 /** Fetch while preserving the URL hostname for Host and TLS SNI. */

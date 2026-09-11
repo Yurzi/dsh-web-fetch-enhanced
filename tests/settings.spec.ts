@@ -3,7 +3,7 @@ import type { Fiber } from '@deepseek-ai/cordis'
 import { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import WebRuntime from '@deepseek-ai/dsh-web'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as plugin from '../src/index.ts'
 
 class MemorySettings extends SettingsProvider {
@@ -73,41 +73,18 @@ describe('Web Profile settings integration', () => {
   })
 
   it('delegates to SettingsProvider.installSection when provided upstream', async () => {
-    class V2Settings extends MemorySettings {
-      installedOwner: Context | undefined
-      installedNs: SettingsNamespace | undefined
-
-      installSection<T>(
-        owner: Context,
-        ns: SettingsNamespace,
-        schema: unknown,
-        entry: T,
-        hooks: { setSource: (s: () => T) => void; onChange: () => void; validate?: (v: T) => void },
-      ): void {
-        this.installedOwner = owner
-        this.installedNs = ns
-        const scope = this.register(ns, schema as never, {
-          base: entry,
-          ...hooks.validate ? { validate: hooks.validate } : {},
-        })
-        hooks.setSource(() => scope.get())
-        this.ctx.effect(() => () => {
-          hooks.setSource(() => entry)
-          hooks.onChange()
-        })
-      }
-    }
+    const spy = vi.spyOn(MemorySettings.prototype, 'installSection')
 
     const ctx = new Context()
     await ctx.plugin(WebRuntime, { fetchProvider: 'http-enhanced' })
-    const settingsFiber = ctx.plugin(V2Settings)
+    const settingsFiber = ctx.plugin(MemorySettings)
     await settingsFiber.await()
     const pluginFiber = ctx.plugin(plugin, {})
     await pluginFiber.await()
 
-    const provider = ctx.settings as V2Settings
-    expect(provider.installedNs).toBe(plugin.SETTINGS_NAMESPACE)
-    expect(provider.installedOwner).toBeDefined()
+    expect(spy).toHaveBeenCalled()
+    expect(spy.mock.calls[0]?.[1]).toBe(plugin.SETTINGS_NAMESPACE)
+    expect(spy.mock.calls[0]?.[0]).toBeDefined()
 
     await ctx.fiber.dispose()
   })

@@ -9,6 +9,7 @@ import { isNonPublicIpLiteral } from '../src/address-policy.ts'
 import type { HttpFetchLimits } from '../src/provider.ts'
 import { EnhancedHttpFetchProvider } from '../src/provider.ts'
 import type { FetchResolver, ProxyRouteResolver } from '../src/resolver.ts'
+import { defaultProxyRoute } from '../src/resolver.ts'
 
 const limits: HttpFetchLimits = {
   maxResponseBytes: 5_000_000,
@@ -185,5 +186,12 @@ describe('fetching through proxy in EnhancedHttpFetchProvider', () => {
 
     await expect(fetcher.fetch({ url: `http://127.0.0.1:${fakeProxyPort}/redirect` }))
       .rejects.toMatchObject({ code: 'WEB_REDIRECT_BLOCKED' })
+  })
+})
+
+describe('defaultProxyRoute', () => {
+  it('returns unproxied route for loopback addresses', () => {
+    const route = defaultProxyRoute(new URL('http://127.0.0.1:8080/status'))
+    expect(route).toEqual({ proxied: false })
   })
 })
