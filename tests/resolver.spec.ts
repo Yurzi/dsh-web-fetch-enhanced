@@ -105,6 +105,14 @@ describe('resolveAllowedAddresses', () => {
     controller.abort('test')
     await expect(result).rejects.toThrow('aborted during hostname resolution')
   })
+
+  it('rejects resolution immediately when the request was already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort('cancelled before DNS')
+    await expect(resolveAllowedAddresses(
+      'cancelled.test', controller.signal, new AddressPolicy(), answers({ address: '8.8.8.8', family: 4 }),
+    )).rejects.toMatchObject({ cause: 'cancelled before DNS' })
+  })
 })
 
 describe('createPinnedLookup', () => {

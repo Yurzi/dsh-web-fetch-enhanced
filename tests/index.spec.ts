@@ -25,10 +25,18 @@ describe('Cordis plugin entry', () => {
     expect(() => plugin.createProvider({ maxRedirects: 1.5 })).toThrow('maxRedirects')
   })
 
+  it('rejects unsafe startup values at the actual Config boundary', () => {
+    for (const value of [
+      { providerId: 'bad id' }, { allowCidrs: ['bad'] }, { allowHostnames: ['*'] },
+      { maxResponseBytes: Infinity }, { maxBodyChars: 0 }, { timeoutMs: 0 },
+      { maxRedirects: NaN }, { userAgent: 'injected\nheader' },
+    ]) expect(() => plugin.Config(value)).toThrow()
+  })
+
   it('registers exactly one fetch provider on ctx.web', () => {
     const registerFetchProvider = vi.fn()
-    const ctx = { web: { registerFetchProvider }, inject: vi.fn() } as unknown as Context
-    plugin.apply(ctx, { providerId: 'chosen' })
+    const ctx = { web: { registerFetchProvider }, inject: vi.fn(), on: vi.fn() } as unknown as Context
+    plugin.apply(ctx, plugin.Config({ providerId: 'chosen' }))
     expect(registerFetchProvider).toHaveBeenCalledTimes(1)
     expect(registerFetchProvider.mock.calls[0]?.[0]).toMatchObject({ id: 'chosen' })
   })
@@ -37,7 +45,7 @@ describe('Cordis plugin entry', () => {
     const ctx = new Context()
     const webFiber = await ctx.plugin(WebRuntime, { fetchProvider: 'http-enhanced' })
     const contribution = () => Object.assign(
-      (inner: Context) => { plugin.apply(inner, {}) },
+      (inner: Context) => { plugin.apply(inner, plugin.Config({})) },
       { inject: ['web'] },
     )
     const fiber = await ctx.plugin(contribution())
@@ -58,8 +66,8 @@ describe('Cordis plugin entry', () => {
     expect(plugin.formatAllowlistPrompt({ allowCidrs: [] })).toBe('')
     expect(plugin.formatAllowlistPrompt({ allowCidrs: ['10.0.0.0/8'] }))
       .toContain('CIDRs: 10.0.0.0/8')
-    expect(plugin.formatAllowlistPrompt({ allowHostnames: ['internal.corp'] }))
-      .toContain('hostnames: internal.corp')
+    expect(plugin.formatAllowlistPrompt({ allowHostnames: ['internal.corp'] })).toBe('')
+    expect(plugin.formatAllowlistPrompt({ allowCidrs: [], allowHostnames: ['*.internal.corp'] })).toBe('')
     const full = plugin.formatAllowlistPrompt({
       allowCidrs: ['10.0.0.0/8', '192.168.0.0/16'],
       allowHostnames: ['*.internal.corp'],
@@ -67,6 +75,9 @@ describe('Cordis plugin entry', () => {
     expect(full).toContain('CIDRs: 10.0.0.0/8, 192.168.0.0/16')
     expect(full).toContain('hostnames: *.internal.corp')
     expect(full).toContain('The operator has explicitly authorized web_fetch access')
+    expect(full).toContain('requires BOTH an address within those CIDRs AND a URL hostname')
+    expect(full).toContain('do not independently authorize any non-public address')
+    expect(full).toContain('All other URL, DNS, redirect, and transport safety checks still apply.')
   })
 
   it('registers systemPrompt section dynamically when systemPrompt service is available', async () => {

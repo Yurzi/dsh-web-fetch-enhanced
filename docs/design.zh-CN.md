@@ -40,7 +40,7 @@ flowchart LR
 
 本插件是 Host 侧 provider：它消费已有的 <code>web</code> 服务并注册一个 fetch provider，但不发布新的 Cordis 服务。因此它属于 Host composition，不属于 agent preset。模型工具仍由 preset 中原有的 <code>tool-web</code> 行提供。
 
-入口采用 namespace plugin 约定，只命名导出 <code>name</code>、<code>inject</code>、<code>Config</code>、安全的 <code>createProvider</code> 和 <code>apply</code>，没有 default export，也不公开低级 pinned transport/custom resolver helper。与 DeepSeek Harness 内部插件一致，源码使用显式 <code>.ts</code> 相对导入，<code>cordis.source.patch.yml</code> 在开发时直接加载源码；发布构建由 TypeScript 生成 <code>lib/types</code>，再由 tsdown 分别输出 Host ESM <code>lib/index.js</code> 和浏览器 Client ESM <code>lib/client.js</code>。Client face 以 <code>web-fetch-enhanced</code> 命名空间键向 <code>settings.plugin.item</code> 注册白名单卡片；Host face 通过 <code>settings.installSection</code> 将 Profile composition 作为 base layer，并让 provider 在每次请求时读取最新 resolved section。随包发布的 <code>cordis.patch.yml</code> 供操作者显式合并到 Profile composition。
+入口采用 namespace plugin 约定，无 default export；源码使用显式 `.ts` 相对导入。构建生成 Host ESM `lib/index.js`、类型声明及通过 DSH ModuleLoader 注册的浏览器 `lib/client.js`。Client face 在 `plugins.bundle.config` 中提供插件详情页白名单表单，通过 `configForms.get('web-fetch-enhanced')` 绑定当前 Profile 的固定插件行，并用 `useSyncExternalStore` 订阅状态。页面不重复绘制插件标题或嵌套折叠卡片，保存后保持字段可见并显示结果。Host face 使用带 `.volatile()` 的 Config 字段，通过 `.get()` 读取每次请求的配置快照。Loader 在完整 schema 校验后原子提交 live refs，`loader/volatile-update` 通知更新系统提示词；`providerId` 保持非 volatile，修改时由 Loader 重建实例。随包发布的 `cordis.patch.yml` 为 Profile 提供默认 composition。
 
 ## 3. Provider 选择
 
@@ -100,18 +100,13 @@ flowchart LR
 
 ## 6. 配置与生命周期
 
-### 6.1 三层配置层级与解析机制
-DeepSeek Harness 采用严格的三层分层解析架构：
-1. **Schema 默认层 (Schema Defaults)**：由 <code>Config</code> (Schemastery) 声明全部字段的基线默认值；
-2. **组合层 (Base Layer)**：由 Profile 组合（如 <code>cordis.patch.yml</code>）提供环境级配置；
-3. **用户覆盖层 (User Layer)**：存储于 <code>$DSH_HOME/settings.yaml</code>，专用于持久化用户覆盖。
+### 6.1 Profile 配置层级
 
-运行时通过 <code>settings.installSection</code> 接入系统，未在用户层覆盖的字段自动透明回退至默认值，无需在配置文件中全量平铺。
+配置由 Schema 默认值、Profile composition 和 Profile patch 覆盖共同决定，不再使用全局 `settings.yaml` 或 `settings.installSection`。客户端只绑定随包 patch 声明的 `web-fetch-enhanced` 行；配置不可用或只读时不向其他行写入。
 
-### 6.2 稀疏持久化与存量冗余自愈 (Sparse Save & Legacy Prune)
-Client 端设置卡片采用稀疏持久化模式，使用 <code>scope.mutate()</code> 进行单次原子化变更提交：
-- **按需写入**：仅当输入非空时执行 <code>set</code> 操作；输入为空或等于默认值时执行 <code>unset</code>，从底层 YAML 中彻底删除键名，避免 <code>settings.yaml</code> 膨胀；
-- **存量自愈**：自动检测用户层中历史版本遗留的冗余默认项（如 <code>allowHostnames: []</code>），并在保存时自动追加 <code>unset</code> 将其修剪清除。
+### 6.2 保存、清空与恢复继承
+
+表单将两项白名单通过单次 `form.mutate(ops, revision)` 原子提交，使用草稿开始时的 revision 校验并发修改。清空字段保存为显式空数组，只有“恢复继承”执行 `unset`。保存失败时保留草稿，放弃修改重新读取当前 Profile 的值。离开页面会丢弃未保存的草稿；外部变更会更新未编辑的表单，不覆盖正在编辑的草稿。
 
 ### 6.3 启动阶段校验
 Cordis Config schema 提供所有默认值；<code>createProvider()</code> 也在直接调用时应用同一默认值。启动阶段校验：
@@ -143,7 +138,7 @@ Cordis Config schema 提供所有默认值；<code>createProvider()</code> 也�
 
 ## 8. 兼容策略
 
-插件只依赖 <code>@deepseek-ai/dsh-web</code> 和 <code>@deepseek-ai/dsh-timeout</code> 的公开包根 API，不依赖 DSH 包的 <code>src/*</code> 深路径。安全 transport 在本包内维护，相关行为通过契约测试固定。
+最低支持 DSH `0.1.7-rc.1`，DSH peers 声明 `>=0.1.7-rc.1 <0.2.0`，开发依赖固定为经过验证的 rc.1。使用 web、timeout、http-proxy、system-prompt、Cordis Loader 与客户端插件管理/配置表单的公开导出，不依赖 DSH 包的 `src/*` 深路径。安全 transport 在本包内维护，相关行为通过契约测试固定。
 
 版本升级时重点回归：
 

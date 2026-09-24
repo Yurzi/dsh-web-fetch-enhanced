@@ -39,7 +39,7 @@ describe('installable DSH profile bundle', () => {
     expect(manifest.exports).toHaveProperty('./client')
     expect(manifest.files).toContain('lib/client.js')
     expect(manifest.dsh?.client?.platform).toBe('web')
-    expect(manifest.dsh?.client?.inject).toContain('@deepseek-ai/dsh-client-ui-settings-plugins')
+    expect(manifest.dsh?.client?.inject).toContain('@deepseek-ai/dsh-client-ui-plugin-manager')
     expect(sourcePatchText).toContain("name: './src/index.ts'")
   })
 
@@ -72,7 +72,7 @@ describe('installable DSH profile bundle', () => {
 
     expect(new Set(requested)).toEqual(new Set(['react', 'react/jsx-runtime']))
     expect(exports.apply).toBeTypeOf('function')
-    expect(exports.inject).toEqual(['slots', 'locale', 'settingsScope'])
+    expect(exports.inject).toEqual(['slots', 'locale', 'configForms'])
   })
 
   it('disables the native fetch provider, selects the enhanced provider, and inserts exactly one Host row', () => {

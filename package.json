@@ -1,6 +1,6 @@
 {
   "name": "dsh-web-fetch-enhanced",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Configurable non-public address allowlists for DeepSeek Harness web_fetch",
   "type": "module",
   "main": "./lib/index.js",
@@ -36,7 +36,7 @@
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-ui-settings-plugins",
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
         "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-renderer"
@@ -66,7 +66,7 @@
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0",
-    "dsh": ">=0.1.5-rc.2"
+    "dsh": ">=0.1.7-rc.1 <0.2.0"
   },
   "packageManager": "pnpm@11.7.0",
   "scripts": {
@@ -82,42 +82,48 @@
     "prepack": "pnpm run check"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1 || ^4.0.2",
-    "@deepseek-ai/dsh-timeout": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-settings": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-locale": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-settings": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-settings-plugins": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-web": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-http-proxy": "^0.1.5-rc.2"
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/cordis-plugin-loader": "^1.0.5",
+    "@deepseek-ai/dsh-client-locale": ">=0.1.7-rc.1 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": ">=0.1.7-rc.1 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.7-rc.1 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.7-rc.1 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.7-rc.1 <0.2.0",
+    "@deepseek-ai/dsh-http-proxy": ">=0.1.7-rc.1 <0.2.0",
+    "@deepseek-ai/dsh-system-prompt": ">=0.1.7-rc.1 <0.2.0",
+    "@deepseek-ai/dsh-timeout": ">=0.1.7-rc.1 <0.2.0",
+    "@deepseek-ai/dsh-web": ">=0.1.7-rc.1 <0.2.0"
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "^3.18.1 || ^3.18.2",
+    "@deepseek-ai/schemastery": "^3.18.4",
     "ipaddr.js": "^2.5.0",
     "undici": "^8.10.0"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-timeout": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-settings": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-locale": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-settings": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-settings-plugins": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-web": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-http-proxy": "^0.1.5-rc.2",
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/cordis-plugin-loader": "^1.0.5",
+    "@deepseek-ai/dsh-client-locale": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-http-proxy": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-system-prompt": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-timeout": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-web": "0.1.7-rc.1",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.19.13",
     "@types/react": "~18.3.1",
+    "@types/react-test-renderer": "18.3.1",
+    "@types/semver": "^7.7.1",
     "@vitest/coverage-v8": "^4.1.8",
     "js-yaml": "^4.1.0",
     "oxlint": "^1.51.0",
     "oxlint-tsgolint": "7.0.2001",
     "publint": "^0.3.21",
     "react": "^18.2.0",
+    "react-test-renderer": "18.3.1",
+    "semver": "^7.8.5",
     "tsdown": "^0.21.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"

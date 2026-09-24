@@ -35,7 +35,7 @@ DeepSeek Harness 原生 HTTP provider 默认拒绝所有非公网地址，这是
 
 ## 版本兼容性与支持策略
 
-- **最低支持的 DSH 版本**：`0.1.5-rc.2`
+- **最低支持的 DSH 版本**：`0.1.7-rc.1`
 - **版本支持策略**：本插件**仅对 DeepSeek Harness 的 RC（Release Candidate）候选发布版本及后续稳定正式版提供支持**。由于 Alpha 或开发快照版本更迭频繁且缺乏稳定的 API 保证，本插件不再对 Alpha 等非 RC 阶段版本进行维护与适配。
 
 ## 快速开始
@@ -60,9 +60,9 @@ dsh plugin --profile web add link:/absolute/path/to/dsh-web-fetch-enhanced
 
 打开 DSH Web，进入：
 
-**设置 → 插件 → 可配置插件 → Web Fetch Enhanced**
+**插件 → dsh-web-fetch-enhanced**
 
-展开卡片，在“允许的 CIDR”中每行填写一个网段。例如 Clash / Mihomo 的常见 Fake-IP 配置：
+详情页直接显示白名单表单，在“允许的 CIDR”中每行填写一个网段。例如 Clash / Mihomo 的常见 Fake-IP 配置：
 
 ```text
 198.18.0.0/15
@@ -75,7 +75,9 @@ api.example.com
 *.docs.example.com
 ```
 
-点击“保存”。无需重启 Profile，下一次 `web_fetch` 就会使用新规则。
+点击“保存”，页面显示“已保存”并保留输入框。无需重启 Profile，下一次 `web_fetch` 就会使用新规则。
+
+下方“包含的组件”由 DSH 展示插件运行状态，配置白名单不需要进入组件。
 
 ### 3. 正常使用 `web_fetch`
 
@@ -150,25 +152,21 @@ wiki.corp.example
 
 ## 设置页按钮说明
 
-- **保存**：把当前配置按需保存到用户设置层。本插件采用**稀疏按需持久化 (Sparse Save)**：仅对填写了内容的字段执行 `set`，留空字段自动执行 `unset`，避免在 `$DSH_HOME/settings.yaml` 中写入 `[]` 等冗余默认值；同时会自动检测并自愈存量配置中的空数组冗余项；
-- **放弃修改**：丢弃尚未保存的编辑，恢复当前生效值；
-- **重置为 Profile 配置**：把“删除 `allowCidrs` 和 `allowHostnames` 用户覆盖、重新继承 Profile composition”的操作加入草稿；仍需点击“保存”才会生效；
-- **只读状态**：当前连接没有持久化 Host Profile 设置的权限。通常应从 Host 本机的 loopback 地址打开 Web GUI。
+- **保存**：将两项白名单作为一次配置变更写入当前 Profile 的插件行；Host 校验失败或版本冲突不会显示为成功。
+- **放弃修改**：丢弃尚未保存的编辑，恢复当前生效值。
+- **恢复继承值**：将移除两项白名单覆盖的操作加入草稿；仍需点击“保存”才生效。继承值可能包含非空白名单，请检查保存后的生效值。
+- **只读状态**：当前表单尚未就绪、配置行不可用或连接没有写权限；不会回退到其他 Profile 或全局配置。
 
-## 配置层级与稀疏覆盖规范
+## Profile 配置与旧版本迁移
 
-DeepSeek Harness 采用清晰的三层配置管理机制：
+从 DSH `0.1.7-rc.1` 起，本插件使用 Profile 拥有的 Cordis `Config`、`.volatile()` 和插件管理页的 `configForms` 表单，不再读取全局 `$DSH_HOME/settings.yaml`。
 
-1. **Schema 默认层 (Schema Defaults)**：在插件代码中声明的底层类型与默认值（如 `allowCidrs: []`、`allowHostnames: []`、`timeoutMs: 30,000`）。所有未显式配置的选项均在此层兜底。
-2. **基础 / 组合层 (Base / Composition Layer)**：由 Profile 组合（如随包发布的 `cordis.patch.yml` 或用户自定义的 Profile `cordis.yml`）提供的环境级配置。
-3. **用户覆盖层 (User Layer)**：存储在 `$DSH_HOME/settings.yaml` 中的用户级覆盖配置，优先级最高。
+- 配置由 Schema 默认值与当前 Profile composition/patch 决定；Web 保存只修改选中的插件行。
+- **清空输入并保存会显式写入 `[]`**，用于撤销继承的白名单。空数组具有安全意义，不再自动清理。
+- **恢复继承与清空不同**：只有显式恢复操作才执行 `unset`，可能重新启用底层配置中的白名单。
+- 升级前备份旧设置，将旧 `web-fetch-enhanced` 节中的授权规则逐项审查后迁入目标 Profile 的插件配置。插件不会自动将全局授权复制到所有 Profile。
 
-### 稀疏覆盖设计 (Sparse Override)
-
-`$DSH_HOME/settings.yaml` 是纯粹的**稀疏覆盖层**：
-- **无需填写默认值**：用户仅需写入与默认行为不同的自定义选项。请勿在 `settings.yaml` 中显式写入 `allowHostnames: []`、`allowCidrs: []` 等冗余的空数组或默认配置，保持配置文件干净清爽。
-- **前端自动瘦身与自愈 (Sparse Save & Legacy Prune)**：Web 设置卡片保存时会自动进行稀疏持久化——只对有内容的项发起 `set`，留空项则发起 `unset`；如果用户的 `settings.yaml` 中遗留了历史版本写入的空数组等冗余默认值，保存时会自动自愈并移除（`unset`）该项，实现配置文件自动瘦身。
-- **最小化配置原则**：所有配置示例均遵循最小化原则，避免冗余配置引入维护负担。
+详见 [0.1.7-rc.1 升级说明](docs/migration-0.1.7-rc.1.zh-CN.md)。
 
 ## 安全提示
 
@@ -224,7 +222,9 @@ Fake-IP 模式会把域名解析到 `198.18.0.0/15` 等保留网段，再由代�
 <details>
 <summary><strong>为什么设置卡片是只读的？</strong></summary>
 
-当前浏览器连接不能持久化 Host 设置。请确认你从 Host 本机通过 `127.0.0.1` 或 `localhost` 访问，并检查 Profile 的设置服务是否允许写入。
+请确认目标 Profile 的插件行已启用且配置表单可用，并检查当前连接的配置写权限。表单未就绪或已失效时不会尝试修改其他配置。
+
+若在 DSH `0.1.7-rc.1` 中卡片正常显示，但两个输入框持续禁用，请更新到包含配置 schema 序列化修复的构建，重启 Host 后刷新页面。旧构建的自定义校验回调在传输中被移除，导致浏览器表单无法就绪；修复保留了 Host 端的完整校验。
 </details>
 
 <details>

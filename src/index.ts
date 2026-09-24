@@ -7,7 +7,8 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/cordis-plugin-loader'
+import type {} from '@deepseek-ai/dsh-system-prompt'
 import type { WebFetchProvider, WebFetchRequest, WebFetchResult } from '@deepseek-ai/dsh-web'
 import { AddressPolicy } from './address-policy.ts'
 import type { HttpFetchLimits } from './provider.ts'
@@ -16,8 +17,6 @@ import type { ProxyRouteResolver } from './resolver.ts'
 import { createAllowlistResolver } from './resolver.ts'
 
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647
-const FIBER_DISPOSED = 4
-const FIBER_UNLOADING = 5
 
 /** Explicit product User-Agent used by default. */
 export const DEFAULT_USER_AGENT = 'dsh-web-fetch-enhanced/0.1.0'
@@ -25,8 +24,8 @@ export const DEFAULT_USER_AGENT = 'dsh-web-fetch-enhanced/0.1.0'
 /** Default provider id; select it in the dsh-web row with fetchProvider. */
 export const DEFAULT_PROVIDER_ID = 'http-enhanced'
 
-/** Settings namespace paired with the Web Profile configuration card. */
-export const SETTINGS_NAMESPACE: SettingsNamespace = 'web-fetch-enhanced' as SettingsNamespace
+/** Default Loader entry id paired with the Web Profile configuration card. */
+export const SETTINGS_NAMESPACE = 'web-fetch-enhanced'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'web-fetch-enhanced'
@@ -35,13 +34,13 @@ export const name = 'web-fetch-enhanced'
 export const inject = ['web']
 
 /** Plugin configuration. Every non-public exception is explicit and deny-by-default. */
-export interface Config {
+export interface ProviderConfig {
   /** Provider id registered in ctx.web. Defaults to http-enhanced. */
   providerId?: string
   /** Non-public IPv4/IPv6 CIDRs that may bypass the public-address filter. */
-  allowCidrs?: string[]
+  allowCidrs?: readonly string[]
   /** Optional exact hosts or left-most wildcard rules required in addition to allowCidrs. */
-  allowHostnames?: string[]
+  allowHostnames?: readonly string[]
   /** Maximum response body size in bytes. */
   maxResponseBytes?: number
   /** Maximum decoded body length in characters. */
@@ -54,16 +53,47 @@ export interface Config {
   userAgent?: string
 }
 
-export const Config: z<Config> = z.object({
-  providerId: z.string().default(DEFAULT_PROVIDER_ID),
-  allowCidrs: z.array(z.string()).default([]),
-  allowHostnames: z.array(z.string()).default([]),
-  maxResponseBytes: z.number().default(5_000_000),
-  maxBodyChars: z.number().default(100_000),
-  timeoutMs: z.number().default(30_000),
-  maxRedirects: z.number().default(5),
-  userAgent: z.string().default(DEFAULT_USER_AGENT),
+/** Keep Host-only checks out of the schema serialized for browser forms. */
+function hostValidated<T>(schema: z<T>, validate: (value: T) => void): z<T> {
+  const checked = z.transform(schema, (value) => {
+    validate(value)
+    return value
+  }, true)
+  // Settings strips callbacks from wire schemas. A transform without its callback
+  // cannot validate even the defaults, leaving ConfigForms permanently loading.
+  const presentation = new z<T>(schema.toJSON())
+  checked.toJSON = function () {
+    presentation.meta = { ...schema.meta, ...this.meta }
+    return presentation.toJSON()
+  }
+  return checked
+}
+
+/** Schemastery's number bounds alone do not reject NaN; validate finiteness before commit. */
+function positiveLimit(field: string, max = Number.MAX_VALUE) {
+  return hostValidated(z.number().min(Number.MIN_VALUE).max(max), (value) => {
+    assertPositiveFinite(field, value)
+  })
+}
+
+/** Validate the whole candidate before Loader atomically commits any live references. */
+export const Config = z.object({
+  providerId: z.string().pattern(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u).default(DEFAULT_PROVIDER_ID),
+  allowCidrs: hostValidated(z.array(z.string()), (value) => {
+    new AddressPolicy({ allowCidrs: value })
+  }).default([]).volatile(),
+  allowHostnames: hostValidated(z.array(z.string()), (value) => {
+    new AddressPolicy({ allowHostnames: value })
+  }).default([]).volatile(),
+  maxResponseBytes: positiveLimit('maxResponseBytes').default(5_000_000).volatile(),
+  maxBodyChars: positiveLimit('maxBodyChars').default(100_000).volatile(),
+  timeoutMs: positiveLimit('timeoutMs', MAX_NODE_TIMER_DELAY_MS).default(30_000).volatile(),
+  maxRedirects: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(5).volatile(),
+  userAgent: z.string().pattern(/^[\x20-\x7e\x80-\xff]*$/u).default(DEFAULT_USER_AGENT).volatile(),
 })
+
+/** Parsed plugin Config: ordinary identity plus stable live field references. */
+export type Config = ReturnType<typeof Config>
 
 interface ResolvedConfig {
   readonly providerId: string
@@ -76,56 +106,20 @@ interface ResolvedConfig {
   readonly userAgent: string
 }
 
-interface SettingsProviderSeam {
-  installSection?<T>(
-    owner: Context,
-    ns: SettingsNamespace,
-    schema: z<T>,
-    entry: T,
-    hooks: {
-      setSource: (source: () => T) => void
-      onChange: () => void
-      validate?: (value: T) => void
-    },
-  ): void
-  register<T>(
-    ns: SettingsNamespace,
-    schema: z<T>,
-    options?: { base?: T; validate?: (value: T) => void },
-  ): { get(): T; watch(cb: () => void): () => void }
-}
-
-interface SystemPromptSeam {
-  section(section: {
-    name: string
-    order: number
-    text: string | ((context?: unknown) => string)
-  }): () => void
-}
-
-declare module '@deepseek-ai/cordis' {
-  interface Context {
-    systemPrompt?: SystemPromptSeam
-  }
-  interface Events {
-    'system-prompt/change'(): void
-  }
-}
-
 /** Build prompt guidance copy informing the model of authorized non-public destinations. */
-export function formatAllowlistPrompt(config: Config): string {
+export function formatAllowlistPrompt(config: ProviderConfig): string {
   const cidrs = config.allowCidrs ?? []
   const hostnames = config.allowHostnames ?? []
-  if (cidrs.length === 0 && hostnames.length === 0) return ''
-  const items: string[] = []
-  if (cidrs.length > 0) items.push(`CIDRs: ${cidrs.join(', ')}`)
-  if (hostnames.length > 0) items.push(`hostnames: ${hostnames.join(', ')}`)
-  return `The operator has explicitly authorized web_fetch access to the following non-public destinations: [${items.join('; ')}]. You can safely fetch these endpoints.`
+  if (cidrs.length === 0) return ''
+  const authorization = `The operator has explicitly authorized web_fetch access to non-public addresses within [CIDRs: ${cidrs.join(', ')}].`
+  const restriction = hostnames.length === 0 ? ''
+    : ` This exception requires BOTH an address within those CIDRs AND a URL hostname matching one of [hostnames: ${hostnames.join(', ')}]. Hostname rules only restrict the CIDR exceptions; they do not independently authorize any non-public address.`
+  return `${authorization}${restriction} All other URL, DNS, redirect, and transport safety checks still apply.`
 }
 
 /** Construct the provider without mounting it, useful for tests and custom compositions. */
 export function createProvider(
-  config: Config = {},
+  config: ProviderConfig = {},
   proxyResolver?: ProxyRouteResolver,
 ): EnhancedHttpFetchProvider {
   const resolved = resolveConfig(config)
@@ -157,58 +151,36 @@ export { isNonPublicIpLiteral } from './address-policy.ts'
 export type { ProxyRouteResolver, ProxyRouteResult } from './resolver.ts'
 export { defaultProxyRoute } from './resolver.ts'
 
-function isUnloading(ctx: Context): boolean {
-  const state = ctx.fiber?.state
-  return state === FIBER_UNLOADING || state === FIBER_DISPOSED
+/** Capture one coherent immutable configuration for a single request or prompt assembly. */
+function snapshotConfig(config: Config): ProviderConfig {
+  return {
+    providerId: config.providerId,
+    allowCidrs: config.allowCidrs.get(),
+    allowHostnames: config.allowHostnames.get(),
+    maxResponseBytes: config.maxResponseBytes.get(),
+    maxBodyChars: config.maxBodyChars.get(),
+    timeoutMs: config.timeoutMs.get(),
+    maxRedirects: config.maxRedirects.get(),
+    userAgent: config.userAgent.get(),
+  }
 }
 
-/** Register the enhanced fetch provider and its live Web Profile settings section. */
+/** Register a provider backed exclusively by Loader-owned live Config references. */
 export function apply(ctx: Context, config: Config): void {
-  const providerId = resolveConfig(config).providerId
-  let current: () => Config = () => config
-
-  ctx.inject(['settings'], (settingsCtx) => {
-    const settings = settingsCtx.settings as unknown as SettingsProviderSeam
-
-    if (typeof settings.installSection === 'function') {
-      settings.installSection(ctx, SETTINGS_NAMESPACE, Config, config, {
-        setSource: (source) => { current = source },
-        onChange: () => {
-          ctx.emit('system-prompt/change')
-        },
-        validate: (value) => {
-          if (resolveConfig(value).providerId !== providerId) {
-            throw new Error('web-fetch-enhanced: providerId cannot be changed through live settings')
-          }
-          createProvider(value)
-        },
-      })
-      return
-    }
-
-    const scope = settings.register(SETTINGS_NAMESPACE, Config, {
-      base: config,
-      validate: (value) => {
-        if (resolveConfig(value).providerId !== providerId) {
-          throw new Error('web-fetch-enhanced: providerId cannot be changed through live settings')
-        }
-        createProvider(value)
-      },
-    })
-    current = () => scope.get()
-    settingsCtx.effect(() => () => {
-      if (isUnloading(ctx)) return
-      current = () => config
+  // Validate before registration, including compositions that invoke apply directly.
+  const providerId = createProvider(snapshotConfig(config)).id
+  ctx.on('loader/volatile-update', (paths) => {
+    if (paths.some(([field]) => field === 'allowCidrs' || field === 'allowHostnames')) {
       ctx.emit('system-prompt/change')
-    })
+    }
   })
 
   ctx.inject(['systemPrompt'], (promptCtx) => {
-    const systemPrompt = promptCtx.systemPrompt as unknown as SystemPromptSeam
-    systemPrompt.section({
+    promptCtx.systemPrompt.section({
       name: 'web-fetch-enhanced:allowlist',
       order: 2105,
-      text: () => formatAllowlistPrompt(current()),
+      text: () => formatAllowlistPrompt(snapshotConfig(config)),
+      interpolate: false,
     })
   })
 
@@ -216,13 +188,13 @@ export function apply(ctx: Context, config: Config): void {
     id: providerId,
     available: () => true,
     fetch: async (request: WebFetchRequest, signal?: AbortSignal): Promise<WebFetchResult> => {
-      return await createProvider(current()).fetch(request, signal)
+      return await createProvider(snapshotConfig(config)).fetch(request, signal)
     },
   }
   ctx.web.registerFetchProvider(dynamicProvider)
 }
 
-function resolveConfig(config: Config): ResolvedConfig {
+function resolveConfig(config: ProviderConfig): ResolvedConfig {
   return {
     providerId: config.providerId ?? DEFAULT_PROVIDER_ID,
     allowCidrs: config.allowCidrs ?? [],

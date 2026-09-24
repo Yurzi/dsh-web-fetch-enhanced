@@ -1,231 +1,137 @@
-import { describe, expect, it } from 'vitest'
+import type { ConfigPageForm } from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
+import { describe, expect, it, vi } from 'vitest'
 import { en, zh } from '../src/client/locales.ts'
-import {
-  buildSaveOps,
-  checkAccepted,
-  isDirty,
-  isRedundantUserField,
-  parseLines,
-  type SettingsPathOp,
-} from '../src/client/AllowlistCard.tsx'
+import { AllowlistCard, AllowlistPage, buildSaveOps, formatLines, isDirty, layerValues, parseLines, saveAllowlist } from '../src/client/AllowlistCard.tsx'
 
-describe('allowlist settings card helpers', () => {
-  it('normalizes one entry per line while preserving order', () => {
-    expect(parseLines(' 10.0.0.0/8 \n\n*.example.test\n')).toEqual({
-      values: ['10.0.0.0/8', '*.example.test'],
-      duplicate: false,
-    })
+function formFixture(): ConfigPageForm {
+  return {
+    state: { status: 'ready', writable: true, mode: 'host', revision: 7,
+      value: { allowCidrs: [], allowHostnames: [] },
+      base: { allowCidrs: ['10.0.0.0/8'], allowHostnames: ['internal.example'] },
+      user: { allowCidrs: [], allowHostnames: [] },
+    },
+    mutate: vi.fn(async () => true),
+  }
+}
+
+describe('allowlist profile configuration helpers', () => {
+  it('normalizes entries while preserving order and detecting duplicates', () => {
+    expect(parseLines(' 10.0.0.0/8 \r\n\n*.example.test\n')).toEqual({ values: ['10.0.0.0/8', '*.example.test'], duplicate: false })
+    expect(parseLines('10.0.0.0/8\n10.0.0.0/8')).toEqual({ values: ['10.0.0.0/8'], duplicate: true })
+    expect(formatLines(['a', 'b'])).toBe('a\nb')
+    expect(formatLines(undefined)).toBe('')
   })
 
-  it('reports duplicate entries instead of silently accepting them', () => {
-    expect(parseLines('10.0.0.0/8\n10.0.0.0/8')).toEqual({
-      values: ['10.0.0.0/8'],
-      duplicate: true,
-    })
+  it('narrows profile values without trusting malformed data', () => {
+    expect(layerValues({ allowCidrs: ['10.0.0.0/8'] }, 'allowCidrs')).toEqual(['10.0.0.0/8'])
+    for (const value of [null, undefined, {}, { allowCidrs: 'x' }, { allowCidrs: [1] }]) {
+      expect(layerValues(value, 'allowCidrs')).toBeUndefined()
+    }
   })
 
-  it('keeps Chinese and English dictionaries structurally paired', () => {
+  it('keeps Chinese and English dictionaries paired', () => {
     expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort())
-    expect(zh.title).toBe('Web Fetch Enhanced')
-    expect(en.title).toBe('Web Fetch Enhanced')
+    expect(en.reset).toContain('inherited')
   })
-})
 
-describe('buildSaveOps (sparse save and legacy pruning)', () => {
-  it('generates a set for allowCidrs and an unset for allowHostnames when CIDR is provided but Hostnames is empty', () => {
-    const ops = buildSaveOps({ cidrs: ['198.18.0.0/15'], hostnames: [] })
-    expect(ops).toEqual([
+  it('writes explicit empty overrides rather than reviving inherited allowlists', () => {
+    expect(buildSaveOps({ cidrs: [], hostnames: [] })).toEqual([
+      { op: 'set', path: ['allowCidrs'], value: [] },
+      { op: 'set', path: ['allowHostnames'], value: [] },
+    ])
+    expect(buildSaveOps({ cidrs: ['198.18.0.0/15'], hostnames: [] })).toEqual([
       { op: 'set', path: ['allowCidrs'], value: ['198.18.0.0/15'] },
-      { op: 'unset', path: ['allowHostnames'] },
+      { op: 'set', path: ['allowHostnames'], value: [] },
     ])
   })
 
-  it('generates unset for both when both are empty', () => {
-    const ops = buildSaveOps({ cidrs: [], hostnames: [] })
-    expect(ops).toEqual([
+  it('unsets only on explicit reset to inherited configuration', () => {
+    expect(buildSaveOps({ cidrs: ['10.0.0.0/8'], hostnames: ['internal.example'] }, true)).toEqual([
       { op: 'unset', path: ['allowCidrs'] },
       { op: 'unset', path: ['allowHostnames'] },
     ])
   })
 
-  it('generates set for both when both are provided', () => {
-    const ops = buildSaveOps({ cidrs: ['198.18.0.0/15'], hostnames: ['api.example.com'] })
-    expect(ops).toEqual([
-      { op: 'set', path: ['allowCidrs'], value: ['198.18.0.0/15'] },
-      { op: 'set', path: ['allowHostnames'], value: ['api.example.com'] },
-    ])
-  })
-
-  it('generates unset for both when resetToProfile is true regardless of input', () => {
-    const ops = buildSaveOps(
-      { cidrs: ['198.18.0.0/15'], hostnames: ['api.example.com'] },
-      undefined,
-      true,
-    )
-    expect(ops).toEqual([
-      { op: 'unset', path: ['allowCidrs'] },
-      { op: 'unset', path: ['allowHostnames'] },
-    ])
-  })
-
-  it('prunes legacy redundant allowHostnames: [] when saving CIDRs only', () => {
-    const legacyUser = { allowCidrs: ['198.18.0.0/15'], allowHostnames: [] }
-    const ops = buildSaveOps({ cidrs: ['198.18.0.0/15'], hostnames: [] }, legacyUser)
-    expect(ops).toEqual([
-      { op: 'set', path: ['allowCidrs'], value: ['198.18.0.0/15'] },
-      { op: 'unset', path: ['allowHostnames'] },
-    ])
-  })
-
-  it('prunes both legacy redundant empty arrays when saving empty allowlists', () => {
-    const legacyUser = { allowCidrs: [], allowHostnames: [] }
-    const ops = buildSaveOps({ cidrs: [], hostnames: [] }, legacyUser)
-    expect(ops).toEqual([
-      { op: 'unset', path: ['allowCidrs'] },
-      { op: 'unset', path: ['allowHostnames'] },
-    ])
-  })
-
-  it('replaces legacy empty array in user layer when new values are provided', () => {
-    const legacyUser = { allowCidrs: [], allowHostnames: [] }
-    const ops = buildSaveOps({ cidrs: ['10.0.0.0/8'], hostnames: ['internal.corp'] }, legacyUser)
+  it('copies input arrays and touches no unrelated profile configuration', () => {
+    const cidrs = ['10.0.0.0/8']
+    const ops = buildSaveOps({ cidrs, hostnames: ['internal.example'] })
+    cidrs.push('127.0.0.0/8')
     expect(ops).toEqual([
       { op: 'set', path: ['allowCidrs'], value: ['10.0.0.0/8'] },
-      { op: 'set', path: ['allowHostnames'], value: ['internal.corp'] },
+      { op: 'set', path: ['allowHostnames'], value: ['internal.example'] },
     ])
   })
-})
 
-describe('checkAccepted', () => {
-  it('accepts set operations when user layer matches expected values', () => {
-    const user = { allowCidrs: ['198.18.0.0/15'], allowHostnames: ['api.example.com'] }
-    const ops: SettingsPathOp[] = [
-      { op: 'set', path: ['allowCidrs'], value: ['198.18.0.0/15'] },
-      { op: 'set', path: ['allowHostnames'], value: ['api.example.com'] },
-    ]
-    expect(checkAccepted(user, ops)).toBe(true)
-  })
-
-  it('accepts mixed set and unset operations when set matches and unset field is absent', () => {
-    const user = { allowCidrs: ['198.18.0.0/15'] }
-    const ops: SettingsPathOp[] = [
-      { op: 'set', path: ['allowCidrs'], value: ['198.18.0.0/15'] },
-      { op: 'unset', path: ['allowHostnames'] },
-    ]
-    expect(checkAccepted(user, ops)).toBe(true)
-  })
-
-  it('accepts when both fields are unset and absent from user layer', () => {
-    const user = {}
-    const ops: SettingsPathOp[] = [
-      { op: 'unset', path: ['allowCidrs'] },
-      { op: 'unset', path: ['allowHostnames'] },
-    ]
-    expect(checkAccepted(user, ops)).toBe(true)
-    expect(checkAccepted(undefined, ops)).toBe(true)
-  })
-
-  it('rejects unset operation if field is still present in user layer', () => {
-    const user = { allowCidrs: ['198.18.0.0/15'], allowHostnames: [] }
-    const ops: SettingsPathOp[] = [
-      { op: 'set', path: ['allowCidrs'], value: ['198.18.0.0/15'] },
-      { op: 'unset', path: ['allowHostnames'] },
-    ]
-    expect(checkAccepted(user, ops)).toBe(false)
-  })
-
-  it('rejects set operation if values do not match user layer', () => {
-    const user = { allowCidrs: ['10.0.0.0/8'] }
-    const ops: SettingsPathOp[] = [
-      { op: 'set', path: ['allowCidrs'], value: ['198.18.0.0/15'] },
-      { op: 'unset', path: ['allowHostnames'] },
-    ]
-    expect(checkAccepted(user, ops)).toBe(false)
+  it('does not mark explicit empty profile overrides as redundant or dirty', () => {
+    const clean = { cidrs: '', hostnames: '', resolvedCidrs: '', resolvedHostnames: '' }
+    expect(isDirty(clean)).toBe(false)
+    expect(isDirty({ ...clean, cidrs: '10.0.0.0/8' })).toBe(true)
+    expect(isDirty({ ...clean, hostnames: 'internal.example' })).toBe(true)
+    expect(isDirty({ ...clean, resetToInherited: true })).toBe(true)
   })
 })
 
-describe('isDirty', () => {
-  it('returns false when input matches resolved values and no redundant keys exist', () => {
-    expect(isDirty({
-      cidrs: '198.18.0.0/15',
-      hostnames: '',
-      resolvedCidrs: '198.18.0.0/15',
-      resolvedHostnames: '',
-      user: { allowCidrs: ['198.18.0.0/15'] },
-    })).toBe(false)
+describe('profile form save contract', () => {
+  const ops = buildSaveOps({ cidrs: [], hostnames: [] })
+
+  it('submits one atomic write fenced at the draft revision', async () => {
+    const form = formFixture()
+    await expect(saveAllowlist(form, ops, 5)).resolves.toBe(true)
+    expect(form.mutate).toHaveBeenCalledExactlyOnceWith(ops, 5)
   })
 
-  it('returns true when cidrs input differs from resolved values', () => {
-    expect(isDirty({
-      cidrs: '10.0.0.0/8',
-      hostnames: '',
-      resolvedCidrs: '198.18.0.0/15',
-      resolvedHostnames: '',
-      user: { allowCidrs: ['198.18.0.0/15'] },
-    })).toBe(true)
+  it('treats false as rejection even when the recovered profile already matches the draft', async () => {
+    const form = formFixture()
+    vi.mocked(form.mutate).mockResolvedValue(false)
+    await expect(saveAllowlist(form, ops, 7)).resolves.toBe(false)
   })
 
-  it('returns true when hostnames input differs from resolved values', () => {
-    expect(isDirty({
-      cidrs: '198.18.0.0/15',
-      hostnames: 'api.example.com',
-      resolvedCidrs: '198.18.0.0/15',
-      resolvedHostnames: '',
-      user: { allowCidrs: ['198.18.0.0/15'] },
-    })).toBe(true)
+  it('converts transport rejection into a failed save', async () => {
+    const form = formFixture()
+    vi.mocked(form.mutate).mockRejectedValue(new Error('connection lost'))
+    await expect(saveAllowlist(form, ops, 7)).resolves.toBe(false)
   })
 
-  it('returns true when resetToProfile is staged', () => {
-    expect(isDirty({
-      cidrs: '198.18.0.0/15',
-      hostnames: '',
-      resolvedCidrs: '198.18.0.0/15',
-      resolvedHostnames: '',
-      user: { allowCidrs: ['198.18.0.0/15'] },
-      resetToProfile: true,
-    })).toBe(true)
-  })
-
-  it('returns true when user layer has legacy redundant empty array needing unset', () => {
-    // Legacy bloat: allowHostnames is present in user layer as []
-    expect(isDirty({
-      cidrs: '198.18.0.0/15',
-      hostnames: '',
-      resolvedCidrs: '198.18.0.0/15',
-      resolvedHostnames: '',
-      user: { allowCidrs: ['198.18.0.0/15'], allowHostnames: [] },
-    })).toBe(true)
-  })
-
-  it('returns false when legacy prune was dismissed by clicking discard', () => {
-    expect(isDirty({
-      cidrs: '198.18.0.0/15',
-      hostnames: '',
-      resolvedCidrs: '198.18.0.0/15',
-      resolvedHostnames: '',
-      user: { allowCidrs: ['198.18.0.0/15'], allowHostnames: [] },
-      dismissedPrune: true,
-    })).toBe(false)
-  })
-
-  it('returns true when user clears an existing allowlist to empty', () => {
-    expect(isDirty({
-      cidrs: '',
-      hostnames: '',
-      resolvedCidrs: '198.18.0.0/15',
-      resolvedHostnames: '',
-      user: { allowCidrs: ['198.18.0.0/15'] },
-    })).toBe(true)
+  it('refuses unavailable, loading, read-only and unfenced writes', async () => {
+    for (const state of [
+      { status: 'unavailable' as const }, { status: 'loading' as const }, { writable: false },
+    ]) {
+      const form = formFixture()
+      Object.assign(form.state, state)
+      await expect(saveAllowlist(form, ops, 7)).resolves.toBe(false)
+      expect(form.mutate).not.toHaveBeenCalled()
+    }
+    const form = formFixture()
+    await expect(saveAllowlist(form, ops, undefined)).resolves.toBe(false)
+    expect(form.mutate).not.toHaveBeenCalled()
   })
 })
 
-describe('isRedundantUserField', () => {
-  it('identifies empty arrays in user layer as redundant defaults', () => {
-    expect(isRedundantUserField({ allowHostnames: [] }, 'allowHostnames')).toBe(true)
-    expect(isRedundantUserField({ allowCidrs: [] }, 'allowCidrs')).toBe(true)
-    expect(isRedundantUserField({ allowHostnames: ['api.example.com'] }, 'allowHostnames')).toBe(false)
-    expect(isRedundantUserField({}, 'allowHostnames')).toBe(false)
-    expect(isRedundantUserField(undefined, 'allowHostnames')).toBe(false)
-    expect(isRedundantUserField(null, 'allowHostnames')).toBe(false)
+describe('Profile configuration page availability', () => {
+  const t = (key: keyof typeof en) => en[key]
+  it('renders the summary without requiring a form', () => {
+    expect(AllowlistPage({ view: 'summary', t }).props.children).toBe(en.description)
+  })
+  it('does not fall back to another entry when the owner has no form', () => {
+    const output = AllowlistPage({ view: 'page', t })
+    expect(output.type).toBe('p')
+    expect(output.props.role).toBe('status')
+    expect(output.props.children).toBe(en.unavailable)
+  })
+  it('shows a loading status until the form is ready', () => {
+    const form = formFixture()
+    form.state.status = 'loading'
+    expect(AllowlistPage({ view: 'page', form, t }).props.children).toBe(en.loading)
+  })
+  it('passes the exact owner form to the card', () => {
+    const form = formFixture()
+    const output = AllowlistPage({ view: 'page', form, t })
+    expect(output.type).toBe(AllowlistCard)
+    expect(output.props.form).toBe(form)
+  })
+  it('does not render an editable card for an unavailable form', () => {
+    const form = formFixture()
+    form.state.status = 'unavailable'
+    expect(AllowlistPage({ view: 'page', form, t }).props.children).toBe(en.unavailable)
   })
 })
