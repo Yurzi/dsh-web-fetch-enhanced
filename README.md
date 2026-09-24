@@ -35,7 +35,8 @@ DeepSeek Harness 原生 HTTP provider 默认拒绝所有非公网地址，这是
 
 ## 版本兼容性与支持策略
 
-- **最低支持的 DSH 版本**：`0.1.7-rc.1`
+- **最低支持的 DSH 版本**：`0.1.7-rc.2`
+- **v0.0.8 更新**：[上游兼容性评估与发布说明](docs/releases/0.0.8.md)。
 - **版本支持策略**：本插件**仅对 DeepSeek Harness 的 RC（Release Candidate）候选发布版本及后续稳定正式版提供支持**。由于 Alpha 或开发快照版本更迭频繁且缺乏稳定的 API 保证，本插件不再对 Alpha 等非 RC 阶段版本进行维护与适配。
 
 ## 快速开始

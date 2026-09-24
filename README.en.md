@@ -35,7 +35,8 @@ With an empty CIDR allowlist, the security boundary remains equivalent to the na
 
 ## Compatibility & Support Policy
 
-- **Minimum Supported DSH Version**: `0.1.7-rc.1`
+- **Minimum Supported DSH Version**: `0.1.7-rc.2`
+- **v0.0.8 update**: [Compatibility assessment and release notes](docs/releases/0.0.8.md).
 - **Support Policy**: This plugin **only supports DeepSeek Harness RC (Release Candidate) releases and future stable releases**. Compatibility is not maintained for rapid-moving Alpha or development snapshot versions.
 
 ## Quick start

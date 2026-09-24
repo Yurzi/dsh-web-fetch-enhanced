@@ -138,7 +138,7 @@ Cordis Config schema 提供所有默认值；<code>createProvider()</code> 也�
 
 ## 8. 兼容策略
 
-最低支持 DSH `0.1.7-rc.1`，DSH peers 声明 `>=0.1.7-rc.1 <0.2.0`，开发依赖固定为经过验证的 rc.1。使用 web、timeout、http-proxy、system-prompt、Cordis Loader 与客户端插件管理/配置表单的公开导出，不依赖 DSH 包的 `src/*` 深路径。安全 transport 在本包内维护，相关行为通过契约测试固定。
+最低支持 DSH `0.1.7-rc.2`，DSH peers 声明 `>=0.1.7-rc.2 <0.2.0`，开发依赖固定为经过验证的 rc.2。使用 web、timeout、http-proxy、system-prompt、Cordis Loader 与客户端插件管理/配置表单的公开导出，不依赖 DSH 包的 `src/*` 深路径。安全 transport 在本包内维护，相关行为通过契约测试固定。
 
 版本升级时重点回归：
 
