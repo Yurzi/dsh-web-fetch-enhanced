@@ -40,7 +40,7 @@ flowchart LR
 
 本插件是 Host 侧 provider：它消费已有的 <code>web</code> 服务并注册一个 fetch provider，但不发布新的 Cordis 服务。因此它属于 Host composition，不属于 agent preset。模型工具仍由 preset 中原有的 <code>tool-web</code> 行提供。
 
-入口采用 namespace plugin 约定，无 default export；源码使用显式 `.ts` 相对导入。构建生成 Host ESM `lib/index.js`、类型声明及通过 DSH ModuleLoader 注册的浏览器 `lib/client.js`。Client face 在 `plugins.bundle.config` 中提供插件详情页白名单表单，通过 `configForms.get('web-fetch-enhanced')` 绑定当前 Profile 的固定插件行，并用 `useSyncExternalStore` 订阅状态。页面不重复绘制插件标题或嵌套折叠卡片，保存后保持字段可见并显示结果。Host face 使用带 `.volatile()` 的 Config 字段，通过 `.get()` 读取每次请求的配置快照。Loader 在完整 schema 校验后原子提交 live refs，`loader/volatile-update` 通知更新系统提示词；`providerId` 保持非 volatile，修改时由 Loader 重建实例。随包发布的 `cordis.patch.yml` 为 Profile 提供默认 composition。
+入口采用 namespace plugin 约定，无 default export；源码使用显式 `.ts` 相对导入。构建生成 Host ESM `lib/index.js`、类型声明及通过 DSH ModuleLoader 注册的浏览器 `lib/client.cjs`。Client face 在 `plugins.bundle.config` 中提供插件详情页白名单表单，通过 `configForms.get('web-fetch-enhanced')` 绑定当前 Profile 的固定插件行，并用 `useSyncExternalStore` 订阅状态。页面不重复绘制插件标题或嵌套折叠卡片，保存后保持字段可见并显示结果。Host face 使用带 `.volatile()` 的 Config 字段，通过 `.get()` 读取每次请求的配置快照。Loader 在完整 schema 校验后原子提交 live refs，`loader/volatile-update` 通知更新系统提示词；`providerId` 保持非 volatile，修改时由 Loader 重建实例。随包发布的 `cordis.patch.yml` 为 Profile 提供默认 composition。
 
 ## 3. Provider 选择
 
@@ -138,7 +138,7 @@ Cordis Config schema 提供所有默认值；<code>createProvider()</code> 也�
 
 ## 8. 兼容策略
 
-最低支持 DSH `0.1.7-rc.2`，DSH peers 声明 `>=0.1.7-rc.2 <0.2.0`，开发依赖固定为经过验证的 rc.2。使用 web、timeout、http-proxy、system-prompt、Cordis Loader 与客户端插件管理/配置表单的公开导出，不依赖 DSH 包的 `src/*` 深路径。安全 transport 在本包内维护，相关行为通过契约测试固定。
+最低支持 DSH `0.2.0-rc.1`，DSH peers 与 engine 声明 `>=0.2.0-rc.1 <0.3.0-0`，开发依赖固定为 `0.2.0-rc.1`。上界同时排除 0.3.0 预发布版本；详见 [v0.0.9 兼容性评估](<releases/0.0.9.md>)。使用 web、timeout、http-proxy、system-prompt、Cordis Loader 与客户端插件管理/配置表单的公开导出，不依赖 DSH 包的 `src/*` 深路径。安全 transport 在本包内维护，相关行为通过契约测试固定。
 
 版本升级时重点回归：
 

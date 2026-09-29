@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import { load } from 'js-yaml'
 import { describe, expect, it } from 'vitest'
@@ -24,7 +26,7 @@ const sourcePatchText = readFileSync(new URL('../cordis.source.patch.yml', impor
 
 function readClientBundle(): string | undefined {
   try {
-    return readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+    return readFileSync(new URL('../lib/client.cjs', import.meta.url), 'utf8')
   } catch {
     return undefined
   }
@@ -37,15 +39,31 @@ describe('installable DSH profile bundle', () => {
     expect(manifest.exports).toHaveProperty('./cordis.patch.yml', './cordis.patch.yml')
     expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
     expect(manifest.exports).toHaveProperty('./client')
-    expect(manifest.files).toContain('lib/client.js')
+    expect(manifest.files).toContain('lib/client.cjs')
     expect(manifest.dsh?.client?.platform).toBe('web')
     expect(manifest.dsh?.client?.inject).toContain('@deepseek-ai/dsh-client-ui-plugin-manager')
     expect(sourcePatchText).toContain("name: './src/index.ts'")
   })
 
+  it('exports and publishes the CJS client without changing the ESM Host', () => {
+    expect(manifest.exports['.']).toEqual({
+      types: './lib/types/index.d.ts',
+      default: './lib/index.js',
+    })
+    expect(manifest.exports['./client']).toEqual({
+      types: './lib/types/client/index.d.ts',
+      default: './lib/client.cjs',
+    })
+    expect(manifest.files).not.toContain('lib/client.js')
+  })
+
   const clientBundle = readClientBundle()
 
   it.skipIf(clientBundle === undefined)('registers the built client through the DSH module loader', async () => {
+    // Resolve the public entry, so a stale client.js cannot make this test pass.
+    const clientPath = createRequire(import.meta.url).resolve(`${manifest.name}/client`)
+    expect(clientPath).toBe(fileURLToPath(new URL('../lib/client.cjs', import.meta.url)))
+    expect(readFileSync(clientPath, 'utf8')).toBe(clientBundle)
     let registration: ClientBundleRegistration | undefined
     runInNewContext(clientBundle!, {
       window: {

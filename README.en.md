@@ -35,8 +35,8 @@ With an empty CIDR allowlist, the security boundary remains equivalent to the na
 
 ## Compatibility & Support Policy
 
-- **Minimum Supported DSH Version**: `0.1.7-rc.2`
-- **v0.0.8 update**: [Compatibility assessment and release notes](docs/releases/0.0.8.md).
+- **Minimum Supported DSH Version**: `0.2.0-rc.1` (supported range: `>=0.2.0-rc.1 <0.3.0-0`)
+- **v0.0.9 update**: [Compatibility assessment and release notes](docs/releases/0.0.9.md).
 - **Support Policy**: This plugin **only supports DeepSeek Harness RC (Release Candidate) releases and future stable releases**. Compatibility is not maintained for rapid-moving Alpha or development snapshot versions.
 
 ## Quick start
@@ -249,7 +249,7 @@ pnpm install
 pnpm run check
 ```
 
-`pnpm run check` runs type checking, lint, builds, tests, and package publication checks. The Host bundle is emitted as `lib/index.js`; the browser Client bundle is emitted as `lib/client.js`.
+`pnpm run check` runs type checking, lint, builds, tests, and package publication checks. The Host bundle is emitted as `lib/index.js`; the browser Client bundle is emitted as `lib/client.cjs`.
 
 ## License and attribution
 

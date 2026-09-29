@@ -24,7 +24,8 @@ export default defineConfig([
       neverBundle: (specifier: string) => specifier === 'react' || specifier === 'react/jsx-runtime' || specifier.startsWith('@deepseek-ai/'),
     },
     outputOptions: {
-      entryFileNames: 'client.js',
+      // Explicit CJS extension in our ESM package; DSH resolves exports['./client'].
+      entryFileNames: 'client.cjs',
       banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(id)}, factory: (require) => {`,
       footer: 'return module.exports; } });',
       intro: 'var module = { exports: {} }; var exports = module.exports;',
