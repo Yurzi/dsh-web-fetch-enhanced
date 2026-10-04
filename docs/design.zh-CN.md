@@ -119,6 +119,10 @@ Cordis Config schema 提供所有默认值；<code>createProvider()</code> 也�
 
 <code>ctx.web.registerFetchProvider()</code> 返回的注册由 web 服务绑定到当前 Cordis Fiber，插件停止、更新或 HMR 时会自动注销，没有进程级残留。
 
+### 6.4 配置格式版本
+
+插件拥有独立的 `schemaVersion`，当前为 v1。缺失标记的历史配置按 v0 在校验前进行纯内存迁移；非法及未来版本拒绝加载。版本字段为非 volatile 元数据，现有业务字段仍支持热更新，不自动改写 Profile 文件。迁移流程、失败边界与后续持久化约束见[配置版本与迁移设计](<config-versioning.zh-CN.md>)。
+
 ## 7. 错误契约
 
 插件沿用 DSH 的 <code>WebError</code>：

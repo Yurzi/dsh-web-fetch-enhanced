@@ -9,6 +9,7 @@
 
 - id: web-fetch-enhanced
   config:
+    schemaVersion: 1
     providerId: http
     allowCidrs:
       - 198.18.0.0/15

@@ -11,5 +11,6 @@
     - id: web-fetch-enhanced
       name: dsh-web-fetch-enhanced
       config:
+        schemaVersion: 1
         allowCidrs:
           - 198.18.0.0/15

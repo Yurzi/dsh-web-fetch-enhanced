@@ -36,7 +36,7 @@ With an empty CIDR allowlist, the security boundary remains equivalent to the na
 ## Compatibility & Support Policy
 
 - **Minimum Supported DSH Version**: `0.2.0-rc.2` (supported range: `>=0.2.0-rc.2 <0.3.0-0`)
-- **v0.0.10 update**: [Compatibility assessment and release notes](docs/releases/0.0.10.md).
+- **v0.0.11 update**: [Configuration versioning and runtime migration release notes](<docs/releases/0.0.11.md>).
 - **Support Policy**: This plugin **only supports DeepSeek Harness RC (Release Candidate) releases and future stable releases**. Compatibility is not maintained for rapid-moving Alpha or development snapshot versions.
 
 ## Quick start
@@ -169,6 +169,10 @@ Starting with DSH `0.1.7-rc.1`, this plugin uses Profile-owned Cordis `Config`, 
 
 See the [0.1.7-rc.1 migration notes (Chinese)](docs/migration-0.1.7-rc.1.zh-CN.md).
 
+### Plugin configuration format version
+
+The plugin supports `schemaVersion: 1`, independent of its package version. Unversioned configurations are treated as v0 and automatically migrated to v1 in memory. Invalid or future versions are rejected rather than silently downgraded. Migration does not rewrite user files or change allowlist authorization. See the [configuration versioning design (Chinese)](<docs/config-versioning.zh-CN.md>).
+
 ## Security guidance
 
 > **An allowlist expands the network locations an agent can request. Allow only the smallest destinations you understand and trust.**
@@ -188,6 +192,7 @@ Most users only need the two allowlists exposed in DSH Web. Manage other values 
 
 | Field | Default | Purpose |
 | --- | --- | --- |
+| `schemaVersion` | Missing means v0; normalized to `1` | Configuration format version, not a live-editable form field |
 | `providerId` | `http-enhanced` | Fetch provider ID registered in `ctx.web` |
 | `allowCidrs` | `[]` | Non-public IPv4 / IPv6 CIDR exceptions |
 | `allowHostnames` | `[]` | Optional exact hosts or left-most wildcard rules |

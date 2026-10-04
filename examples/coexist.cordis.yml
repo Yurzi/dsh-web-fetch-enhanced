@@ -3,6 +3,7 @@
 # Merge this entry into the existing profile cordis.patch.yml; do not overwrite it.
 - id: web-fetch-enhanced
   config:
+    schemaVersion: 1
     allowCidrs:
       - 198.18.0.0/15
     # Optional hostname second factor for non-public exceptions.

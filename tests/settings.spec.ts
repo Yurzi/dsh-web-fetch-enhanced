@@ -40,10 +40,23 @@ async function endpoint() {
 }
 
 describe('Loader live Config integration', () => {
+  it.each([undefined, 0, 1])('loads and hot-updates schema version %j without rewriting raw config', async (schemaVersion) => {
+    const version = schemaVersion === undefined ? {} : { schemaVersion }
+    const base = { ...version, allowCidrs: ['127.0.0.1/32'] }
+    const { entry, config, update } = await boot(base)
+    const fiber = entry.fiber
+    expect(config.schemaVersion).toBe(plugin.CONFIG_SCHEMA_VERSION)
+    expect(entry.options.config).toEqual(base)
+    await update({ ...version, allowCidrs: [] })
+    expect(entry.fiber).toBe(fiber)
+    expect(config.allowCidrs.get()).toEqual([])
+    expect(entry.options.config.schemaVersion).toBe(schemaVersion)
+  })
+
   it('marks only mutable fields volatile and returns immutable snapshots', () => {
     expect(plugin.Config.dict!.providerId!.meta.volatile).not.toBe(true)
     for (const [name, field] of Object.entries(plugin.Config.dict!)) {
-      if (name !== 'providerId') expect(field.meta.volatile).toBe(true)
+      if (name !== 'providerId' && name !== 'schemaVersion') expect(field.meta.volatile).toBe(true)
     }
     const config = plugin.Config({ allowCidrs: ['127.0.0.1/32'] })
     expect(config.allowCidrs.get()).toEqual(['127.0.0.1/32'])

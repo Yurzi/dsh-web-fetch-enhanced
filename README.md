@@ -36,7 +36,7 @@ DeepSeek Harness 原生 HTTP provider 默认拒绝所有非公网地址，这是
 ## 版本兼容性与支持策略
 
 - **最低支持的 DSH 版本**：`0.2.0-rc.2`（支持范围：`>=0.2.0-rc.2 <0.3.0-0`）
-- **v0.0.10 更新**：[上游兼容性评估与发布说明](docs/releases/0.0.10.md)。
+- **v0.0.11 更新**：[配置版本与运行时迁移发布说明](<docs/releases/0.0.11.md>)。
 - **版本支持策略**：本插件**仅对 DeepSeek Harness 的 RC（Release Candidate）候选发布版本及后续稳定正式版提供支持**。由于 Alpha 或开发快照版本更迭频繁且缺乏稳定的 API 保证，本插件不再对 Alpha 等非 RC 阶段版本进行维护与适配。
 
 ## 快速开始
@@ -169,6 +169,10 @@ wiki.corp.example
 
 详见 [0.1.7-rc.1 升级说明](docs/migration-0.1.7-rc.1.zh-CN.md)。
 
+### 插件配置格式版本
+
+插件配置支持独立的 `schemaVersion: 1`。已有无版本配置按 v0 在读取时自动迁移到 v1，无需手工补字段；非法版本和高于当前支持范围的版本会被拒绝，不静默降级。迁移只发生在内存中，不自动改写用户文件，也不改变白名单授权。详见[配置版本与迁移设计](<docs/config-versioning.zh-CN.md>)。
+
 ## 安全提示
 
 > **白名单会扩大 Agent 可发起 HTTP 请求的网络范围。只放行你理解并信任的最小目标。**
@@ -188,6 +192,7 @@ wiki.corp.example
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
+| `schemaVersion` | 缺失按 v0，运行时迁移至 `1` | 配置格式版本；独立于包版本，不在 Web 表单中编辑 |
 | `providerId` | `http-enhanced` | 注册到 `ctx.web` 的 fetch provider ID |
 | `allowCidrs` | `[]` | 允许作为非公网例外的 IPv4 / IPv6 CIDR |
 | `allowHostnames` | `[]` | 可选的精确域名或最左侧通配规则 |

@@ -7,6 +7,9 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { CONFIG_SCHEMA_VERSION, migrateConfig, withConfigMigrations } from './config-migrations.ts'
+
+export { CONFIG_SCHEMA_VERSION, migrateConfig } from './config-migrations.ts'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type { WebFetchProvider, WebFetchRequest, WebFetchResult } from '@deepseek-ai/dsh-web'
@@ -35,6 +38,8 @@ export const inject = ['web']
 
 /** Plugin configuration. Every non-public exception is explicit and deny-by-default. */
 export interface ProviderConfig {
+  /** Configuration format version. Omitted versions are legacy v0. */
+  schemaVersion?: number
   /** Provider id registered in ctx.web. Defaults to http-enhanced. */
   providerId?: string
   /** Non-public IPv4/IPv6 CIDRs that may bypass the public-address filter. */
@@ -77,7 +82,8 @@ function positiveLimit(field: string, max = Number.MAX_VALUE) {
 }
 
 /** Validate the whole candidate before Loader atomically commits any live references. */
-export const Config = z.object({
+export const Config = withConfigMigrations(z.object({
+  schemaVersion: z.const(CONFIG_SCHEMA_VERSION).default(CONFIG_SCHEMA_VERSION),
   providerId: z.string().pattern(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u).default(DEFAULT_PROVIDER_ID),
   allowCidrs: hostValidated(z.array(z.string()), (value) => {
     new AddressPolicy({ allowCidrs: value })
@@ -90,7 +96,7 @@ export const Config = z.object({
   timeoutMs: positiveLimit('timeoutMs', MAX_NODE_TIMER_DELAY_MS).default(30_000).volatile(),
   maxRedirects: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(5).volatile(),
   userAgent: z.string().pattern(/^[\x20-\x7e\x80-\xff]*$/u).default(DEFAULT_USER_AGENT).volatile(),
-})
+}))
 
 /** Parsed plugin Config: ordinary identity plus stable live field references. */
 export type Config = ReturnType<typeof Config>
@@ -122,7 +128,7 @@ export function createProvider(
   config: ProviderConfig = {},
   proxyResolver?: ProxyRouteResolver,
 ): EnhancedHttpFetchProvider {
-  const resolved = resolveConfig(config)
+  const resolved = resolveConfig(migrateConfig(config) as ProviderConfig)
   assertProviderId(resolved.providerId)
   assertPositiveFinite('maxResponseBytes', resolved.maxResponseBytes)
   assertPositiveFinite('maxBodyChars', resolved.maxBodyChars)
@@ -154,6 +160,7 @@ export { defaultProxyRoute } from './resolver.ts'
 /** Capture one coherent immutable configuration for a single request or prompt assembly. */
 function snapshotConfig(config: Config): ProviderConfig {
   return {
+    schemaVersion: config.schemaVersion,
     providerId: config.providerId,
     allowCidrs: config.allowCidrs.get(),
     allowHostnames: config.allowHostnames.get(),
