@@ -53,6 +53,27 @@ describe('Loader live Config integration', () => {
     expect(entry.options.config.schemaVersion).toBe(schemaVersion)
   })
 
+  it('hot-updates and resets only UA without remounting or changing authorization', async () => {
+    const base = { allowCidrs: ['127.0.0.1/32'] }
+    const { ctx, entry, config, update } = await boot(base)
+    const fiber = entry.fiber
+    const ref = config.userAgent
+    const url = await endpoint()
+    const changed = vi.fn()
+    ctx.on('system-prompt/change', changed)
+    expect((await ctx.web.fetch({ url })).body.content).toBe(plugin.DEFAULT_USER_AGENT)
+    for (const userAgent of ['custom-agent/2.0', '']) {
+      await update({ ...base, userAgent })
+      expect(entry.fiber).toBe(fiber)
+      expect(config.userAgent).toBe(ref)
+      expect(config.allowCidrs.get()).toEqual(base.allowCidrs)
+      expect((await ctx.web.fetch({ url })).body.content).toBe(userAgent)
+    }
+    await update(base)
+    expect((await ctx.web.fetch({ url })).body.content).toBe(plugin.DEFAULT_USER_AGENT)
+    expect(changed).not.toHaveBeenCalled()
+  })
+
   it('marks only mutable fields volatile and returns immutable snapshots', () => {
     expect(plugin.Config.dict!.providerId!.meta.volatile).not.toBe(true)
     for (const [name, field] of Object.entries(plugin.Config.dict!)) {

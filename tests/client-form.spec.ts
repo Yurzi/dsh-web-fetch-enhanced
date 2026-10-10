@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { AllowlistBundlePage } from '../src/client/AllowlistCard.tsx'
 import { en } from '../src/client/locales.ts'
+import { DEFAULT_USER_AGENT } from '../src/user-agent.ts'
 
 type Values = Record<string, unknown>
 
@@ -48,7 +49,12 @@ async function mount(writable = true) {
   const click = async (label: string) => { await act(async () => { button(label).onClick() }) }
   const update = (patch: Partial<typeof state>) => { act(() => { publish(patch) }) }
   const text = () => JSON.stringify(renderer.toJSON())
-  return { renderer, form, mutate, input, button, edit, click, update, text }
+  const uaInput = () => renderer.root.findByType('input').props as {
+    value: string; disabled: boolean; 'aria-invalid'?: boolean
+    onChange: (event: { target: { value: string } }) => void
+  }
+  const editUa = (value: string) => { act(() => { uaInput().onChange({ target: { value } }) }) }
+  return { renderer, form, mutate, input, button, edit, click, update, text, uaInput, editUa }
 }
 
 describe('bundle allowlist form interactions', () => {
@@ -161,5 +167,115 @@ describe('bundle allowlist form interactions', () => {
     expect(ui.text()).toContain(en.unavailable)
     ui.update({ status: 'ready', writable: true })
     expect(ui.input(0).disabled).toBe(false)
+  })
+})
+
+describe('bundle User-Agent form interactions', () => {
+  it('shows the official default, saves exact values, and never changes the allowlists', async () => {
+    const ui = await mount()
+    expect(ui.uaInput().value).toBe(DEFAULT_USER_AGENT)
+    ui.editUa('custom-agent/1.2')
+    await ui.click(en.userAgentSave)
+    expect(ui.mutate).toHaveBeenCalledExactlyOnceWith([
+      { op: 'set', path: ['userAgent'], value: 'custom-agent/1.2' },
+    ], 1)
+    expect(ui.uaInput().value).toBe('custom-agent/1.2')
+    expect(ui.input(0).value).toBe('')
+    expect(ui.text()).toContain(en.saved)
+    expect(ui.button(en.userAgentSave).disabled).toBe(true)
+    ui.editUa('')
+    await ui.click(en.userAgentSave)
+    expect(ui.mutate).toHaveBeenLastCalledWith([{ op: 'set', path: ['userAgent'], value: '' }], 2)
+    expect(ui.uaInput().value).toBe('')
+  })
+
+  it('stages reset to the inherited UA and falls back to official defaults only when absent', async () => {
+    const ui = await mount()
+    ui.update({ value: { userAgent: 'override' }, base: { userAgent: 'base-agent' }, revision: 2 })
+    await ui.click(en.userAgentReset)
+    expect(ui.uaInput().value).toBe('base-agent')
+    expect(ui.mutate).not.toHaveBeenCalled()
+    await ui.click(en.userAgentSave)
+    expect(ui.mutate).toHaveBeenLastCalledWith([{ op: 'unset', path: ['userAgent'] }], 2)
+    ui.update({ value: { userAgent: 'override' }, base: {}, revision: 4 })
+    await ui.click(en.userAgentReset)
+    expect(ui.uaInput().value).toBe(DEFAULT_USER_AGENT)
+    ui.editUa('after-reset')
+    await ui.click(en.userAgentSave)
+    expect(ui.mutate).toHaveBeenLastCalledWith([{ op: 'set', path: ['userAgent'], value: 'after-reset' }], 4)
+  })
+
+  it.each(['bad\r\nheader', 'bad\n', 'bad\0', '中文'])('refuses an invalid UA and supports discard: %j', async value => {
+    const ui = await mount()
+    ui.editUa(value)
+    expect(ui.uaInput()['aria-invalid']).toBe(true)
+    expect(ui.text()).toContain(en.userAgentInvalid)
+    expect(ui.button(en.userAgentSave).disabled).toBe(true)
+    await ui.click(en.userAgentSave)
+    expect(ui.mutate).not.toHaveBeenCalled()
+    await ui.click(en.userAgentDiscard)
+    expect(ui.uaInput().value).toBe(DEFAULT_USER_AGENT)
+  })
+
+  it('refreshes clean UA values but retains stale drafts and fences rejected writes', async () => {
+    const ui = await mount()
+    ui.update({ value: { userAgent: 'external' }, revision: 2 })
+    expect(ui.uaInput().value).toBe('external')
+    ui.editUa('draft')
+    ui.update({ value: { userAgent: 'newer' }, revision: 3 })
+    expect(ui.uaInput().value).toBe('draft')
+    await ui.click(en.userAgentSave)
+    expect(ui.mutate.mock.calls[0]?.[1]).toBe(2)
+    expect(ui.text()).toContain(en.failed)
+    await ui.click(en.userAgentDiscard)
+    expect(ui.uaInput().value).toBe('newer')
+    ui.editUa('retry')
+    await ui.click(en.userAgentSave)
+    expect(ui.mutate.mock.calls[1]?.[1]).toBe(3)
+  })
+
+  it('retains drafts on transport errors and locks UA controls during a save', async () => {
+    const ui = await mount()
+    ui.mutate.mockRejectedValueOnce(new Error('offline'))
+    ui.editUa('draft')
+    await ui.click(en.userAgentSave)
+    expect(ui.text()).toContain(en.failed)
+    expect(ui.uaInput().value).toBe('draft')
+    await ui.click(en.userAgentDiscard)
+    let settle!: (value: boolean) => void
+    ui.mutate.mockImplementationOnce(() => new Promise(resolve => { settle = resolve }))
+    ui.editUa('waiting')
+    await ui.click(en.userAgentSave)
+    expect(ui.uaInput().disabled).toBe(true)
+    expect(ui.button(en.saving).disabled).toBe(true)
+    await ui.click(en.saving)
+    await ui.click(en.userAgentReset)
+    expect(ui.mutate).toHaveBeenCalledTimes(2)
+    await act(async () => { settle(false) })
+    expect(ui.uaInput().disabled).toBe(false)
+    expect(ui.text()).toContain(en.failed)
+  })
+
+  it('never writes read-only or unfenced UA forms', async () => {
+    const ui = await mount(false)
+    expect(ui.uaInput().disabled).toBe(true)
+    await ui.click(en.userAgentReset)
+    expect(ui.mutate).not.toHaveBeenCalled()
+    ui.update({ writable: true, revision: undefined })
+    ui.editUa('draft')
+    await ui.click(en.userAgentSave)
+    expect(ui.mutate).not.toHaveBeenCalled()
+  })
+
+  it('keeps allowlist drafts fenced when the UA is saved separately', async () => {
+    const ui = await mount()
+    ui.edit(0, '10.0.0.0/8')
+    ui.editUa('custom')
+    await ui.click(en.userAgentSave)
+    expect(ui.input(0).value).toBe('10.0.0.0/8')
+    await ui.click(en.save)
+    expect(ui.mutate.mock.calls[1]?.[1]).toBe(1)
+    expect(ui.text()).toContain(en.failed)
+    expect(ui.uaInput().value).toBe('custom')
   })
 })

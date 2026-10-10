@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { HttpFetchLimits } from '../src/provider.ts'
 import { EnhancedHttpFetchProvider } from '../src/provider.ts'
 import type { FetchResolver } from '../src/resolver.ts'
-import { createProvider } from '../src/index.ts'
+import { createProvider, DEFAULT_USER_AGENT } from '../src/index.ts'
 
 const limits: HttpFetchLimits = {
   maxResponseBytes: 1024,
@@ -62,6 +62,24 @@ describe('EnhancedHttpFetchProvider', () => {
     })
     expect(host).toContain('pinned.test')
     expect(userAgent).toBe('enhanced-test/1.0')
+  })
+
+  it.each([undefined, 'custom-agent/3.0', ''])('sends the resolved UA on every same-origin hop: %j', async userAgent => {
+    const seen: (string | undefined)[] = []
+    handler = (req, res) => {
+      seen.push(req.headers['user-agent'])
+      if (req.url === '/start') {
+        res.writeHead(302, { location: '/final' })
+        res.end()
+      } else {
+        res.writeHead(200, { 'content-type': 'text/plain' })
+        res.end('ok')
+      }
+    }
+    const url = base.replace('pinned.test', '127.0.0.1') + '/start'
+    const config = { allowCidrs: ['127.0.0.1/32'], ...(userAgent === undefined ? {} : { userAgent }) }
+    await createProvider(config, () => ({ proxied: false })).fetch({ url })
+    expect(seen).toEqual([userAgent ?? DEFAULT_USER_AGENT, userAgent ?? DEFAULT_USER_AGENT])
   })
 
   it('follows same-origin redirects and blocks cross-origin redirects', async () => {

@@ -1,7 +1,7 @@
 {
   "name": "dsh-web-fetch-enhanced",
-  "version": "0.0.11",
-  "description": "Configurable non-public address allowlists for DeepSeek Harness web_fetch",
+  "version": "0.0.12",
+  "description": "Configurable User-Agent and non-public address allowlists for DeepSeek Harness web_fetch",
   "type": "module",
   "main": "./lib/index.js",
   "types": "./lib/types/index.d.ts",

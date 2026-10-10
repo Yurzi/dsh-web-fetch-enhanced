@@ -120,6 +120,26 @@ describe('fetching through proxy in EnhancedHttpFetchProvider', () => {
     expect(mockResolver).not.toHaveBeenCalled()
   })
 
+  it.each(['custom-proxied-agent/2.0', ''])('preserves UA on the proxy dispatcher path: %j', async userAgent => {
+    const seen: (string | undefined)[] = []
+    fakeProxyServer.removeAllListeners('request')
+    fakeProxyServer.on('request', (req, res) => {
+      seen.push(req.headers['user-agent'])
+      if (req.url === '/start') {
+        res.writeHead(302, { location: '/final' })
+        res.end()
+      } else {
+        respond(req, res, 'done')
+      }
+    })
+    const resolver = vi.fn<FetchResolver>(async () => [])
+    const fetcher = new EnhancedHttpFetchProvider('http-enhanced', { ...limits, userAgent }, resolver,
+      () => ({ proxied: true, dispatcher: proxyDispatcher }))
+    await fetcher.fetch({ url: `http://example.com:${fakeProxyPort}/start` })
+    expect(seen).toEqual([userAgent, userAgent])
+    expect(resolver).not.toHaveBeenCalled()
+  })
+
   it('keeps resolving and pinning when proxy policy resolves to direct', async () => {
     const mockResolver = vi.fn<FetchResolver>(async () => [{ address: '127.0.0.1', family: 4 }])
     const proxyResolver: ProxyRouteResolver = () => ({

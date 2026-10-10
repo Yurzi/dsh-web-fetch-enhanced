@@ -36,6 +36,7 @@ With an empty CIDR allowlist, the security boundary remains equivalent to the na
 ## Compatibility & Support Policy
 
 - **Minimum Supported DSH Version**: `0.2.0-rc.2` (supported range: `>=0.2.0-rc.2 <0.3.0-0`)
+- **v0.0.12 update**: [Custom User-Agent release notes](<docs/releases/0.0.12.md>).
 - **v0.0.11 update**: [Configuration versioning and runtime migration release notes](<docs/releases/0.0.11.md>).
 - **Support Policy**: This plugin **only supports DeepSeek Harness RC (Release Candidate) releases and future stable releases**. Compatibility is not maintained for rapid-moving Alpha or development snapshot versions.
 
@@ -87,6 +88,27 @@ The agent-facing workflow does not change. Ask naturally, for example:
 > Read https://docs.example.com/guide and summarize the deployment steps.
 
 The agent calls `web_fetch` as usual. This plugin performs address resolution, policy checks, and pinned transport underneath it.
+
+## Custom User-Agent
+
+Open **Plugins → dsh-web-fetch-enhanced**, edit **User-Agent** below the allowlists, and choose **Save User-Agent**. This is Profile-scoped and takes effect on the next `web_fetch` without a restart. In-flight requests keep their original snapshot. Direct requests, proxy requests, and every same-origin redirect hop use the configured UA.
+
+- When omitted, the default matches official DSH: `deepseek-harness/0.0.1 (+https://github.com/deepseek-ai)`, not a browser UA.
+- **Discard User-Agent changes** restores the effective value without writing.
+- **Reset User-Agent to inherited value** stages removal of the UA override; choose **Save User-Agent** to apply. It restores a configured base UA, or the official default when absent.
+- UA actions never change either allowlist. The two editors save independently. A save in one editor can make the other draft stale; a conflicting write is rejected. Discard and re-edit to retry.
+- An explicit empty string sends an empty UA header; it does **not** mean reset to default.
+- Browser and Host validation reject CR/LF, other control characters, and non-Latin-1 characters. UA is not a model-facing tool parameter.
+- Changing UA may improve compatibility but does not emulate browser TLS fingerprints, run JavaScript, solve CAPTCHAs, or guarantee bypassing bot detection.
+
+Alternatively, add this fragment to the existing plugin row (do not register another provider):
+
+```yaml
+config:
+  userAgent: "my-fetch-client/1.0"
+```
+
+After upgrading, configurations without an explicit UA use the official default. Existing overrides, including the old product UA and empty strings, are preserved. The format is unchanged, so `schemaVersion` remains `1`.
 
 ## Common setups
 
@@ -188,7 +210,7 @@ The Host still performs complete CIDR, hostname, DNS, and provider validation af
 
 ## Advanced configuration
 
-Most users only need the two allowlists exposed in DSH Web. Manage other values in the Profile composition:
+The allowlists and User-Agent are editable in DSH Web. Manage other values in the Profile composition:
 
 | Field | Default | Purpose |
 | --- | --- | --- |
@@ -200,7 +222,7 @@ Most users only need the two allowlists exposed in DSH Web. Manage other values 
 | `maxBodyChars` | `100,000` | Maximum decoded characters |
 | `timeoutMs` | `30,000` | Fetch timeout in milliseconds |
 | `maxRedirects` | `5` | Maximum same-origin redirect hops; `0` disables following |
-| `userAgent` | `dsh-web-fetch-enhanced/0.1.0` | User-Agent sent with each request |
+| `userAgent` | `deepseek-harness/0.0.1 (+https://github.com/deepseek-ai)` | Official DSH default; editable in Web GUI; sent with each request |
 
 The default bundle uses the separate `http-enhanced` provider ID and explicitly disables the native `web-fetch-http` provider to avoid `WEB_PROVIDER_AMBIGUOUS` when subsequent Web plugins (such as search plugins) overwrite `id: web` configuration and unpin `fetchProvider`. For manual composition or drop-in replacement, see:
 

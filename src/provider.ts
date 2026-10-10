@@ -2,6 +2,7 @@ import { WebError } from '@deepseek-ai/dsh-web'
 import type { WebFetchBody, WebFetchProvider, WebFetchRequest, WebFetchResult } from '@deepseek-ai/dsh-web'
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { Response } from 'undici'
+import { assertUserAgent } from './user-agent.ts'
 import { isNonPublicIpLiteral } from './address-policy.ts'
 import type { FetchResolver, ProxyRouteResolver } from './resolver.ts'
 import { defaultProxyRoute, requestPinned, requestVia } from './resolver.ts'
@@ -23,7 +24,9 @@ export class EnhancedHttpFetchProvider implements WebFetchProvider {
     private readonly limits: HttpFetchLimits,
     private readonly resolveAddresses: FetchResolver,
     private readonly resolveProxy: ProxyRouteResolver = defaultProxyRoute,
-  ) {}
+  ) {
+    assertUserAgent(limits.userAgent)
+  }
 
   available(): boolean {
     return true

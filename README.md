@@ -36,6 +36,7 @@ DeepSeek Harness 原生 HTTP provider 默认拒绝所有非公网地址，这是
 ## 版本兼容性与支持策略
 
 - **最低支持的 DSH 版本**：`0.2.0-rc.2`（支持范围：`>=0.2.0-rc.2 <0.3.0-0`）
+- **v0.0.12 更新**：[自定义 User-Agent 发布说明](<docs/releases/0.0.12.md>)。
 - **v0.0.11 更新**：[配置版本与运行时迁移发布说明](<docs/releases/0.0.11.md>)。
 - **版本支持策略**：本插件**仅对 DeepSeek Harness 的 RC（Release Candidate）候选发布版本及后续稳定正式版提供支持**。由于 Alpha 或开发快照版本更迭频繁且缺乏稳定的 API 保证，本插件不再对 Alpha 等非 RC 阶段版本进行维护与适配。
 
@@ -87,6 +88,27 @@ api.example.com
 > 读取 https://docs.example.com/guide，并总结部署步骤。
 
 Agent 会照常调用 `web_fetch`；地址解析、白名单判断和安全传输由本插件在底层完成。
+
+## 自定义 User-Agent
+
+打开 **插件 → dsh-web-fetch-enhanced**，在白名单下方的 **User-Agent** 输入框中编辑，点击 **保存 User-Agent**。配置仅属于当前 Profile，保存后下一次 `web_fetch` 生效，无需重启；已开始的请求保留原配置快照。直连、代理和同源重定向每一跳均使用该 UA。
+
+- 未配置时，使用官方 DSH 默认值：`deepseek-harness/0.0.1 (+https://github.com/deepseek-ai)`；不会自动改成浏览器 UA。
+- **放弃 UA 修改**：恢复当前生效值，不写配置。
+- **重置 UA 为继承值**：预览移除 UA 覆盖后的值，再点击 **保存 User-Agent** 生效。底层 Profile 有 UA 时恢复该值，否则恢复官方默认。
+- UA 的保存与重置不会改变 CIDR、域名白名单；两组编辑独立保存。若另一组保存导致草稿版本过期，会拒绝写入，请放弃旧草稿后重新编辑。
+- 保持现有空字符串语义：清空并保存会显式发送空 UA 请求头，**不等于恢复默认值**。
+- 禁止 CR/LF、其他控制字符及非 Latin-1 字符；浏览器和 Host 都执行校验。UA 不会作为模型侧工具参数开放。
+- 修改 UA 只可能改善部分站点兼容性，不提供浏览器 TLS 指纹、JavaScript 执行或验证码处理，也不保证绕过反爬。
+
+也可以在现有插件条目的 `config` 中配置（以下为片段，不是新增 provider）：
+
+```yaml
+config:
+  userAgent: "my-fetch-client/1.0"
+```
+
+升级后，未显式设置 UA 的配置使用官方默认值；已有自定义值（包括旧产品 UA 或空字符串）保持不变。字段格式未变化，`schemaVersion` 仍为 `1`。
 
 ## 常见配置场景
 
@@ -188,7 +210,7 @@ wiki.corp.example
 
 ## 高级配置
 
-通常只需要在 Web GUI 中维护两项白名单。其他参数应由 Profile composition 管理：
+可以在 Web GUI 中维护白名单和 User-Agent。其他参数由 Profile composition 管理：
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -200,7 +222,7 @@ wiki.corp.example
 | `maxBodyChars` | `100,000` | 解码后最大字符数 |
 | `timeoutMs` | `30,000` | 单次抓取超时（毫秒） |
 | `maxRedirects` | `5` | 同源重定向最大跳数；`0` 表示不跟随 |
-| `userAgent` | `dsh-web-fetch-enhanced/0.1.0` | 每个请求使用的 User-Agent |
+| `userAgent` | `deepseek-harness/0.0.1 (+https://github.com/deepseek-ai)` | 与官方默认一致；可在 Web GUI 中自定义，每个请求使用 |
 
 默认安装（通过 bundle `cordis.patch.yml`）采用独立的 `http-enhanced` provider ID，并显式禁用原生的 `web-fetch-http`，以避免后续其他 Web 插件（如 search 插件）覆盖 `id: web` 的 config 时因 `fetchProvider` 变成未指定而触发 `WEB_PROVIDER_AMBIGUOUS`。需要自定义组合或 drop-in 替换时，参考：
 

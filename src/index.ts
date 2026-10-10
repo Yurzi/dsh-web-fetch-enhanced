@@ -18,11 +18,11 @@ import type { HttpFetchLimits } from './provider.ts'
 import { EnhancedHttpFetchProvider } from './provider.ts'
 import type { ProxyRouteResolver } from './resolver.ts'
 import { createAllowlistResolver } from './resolver.ts'
+import { DEFAULT_USER_AGENT, USER_AGENT_PATTERN } from './user-agent.ts'
 
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647
 
-/** Explicit product User-Agent used by default. */
-export const DEFAULT_USER_AGENT = 'dsh-web-fetch-enhanced/0.1.0'
+export { DEFAULT_USER_AGENT } from './user-agent.ts'
 
 /** Default provider id; select it in the dsh-web row with fetchProvider. */
 export const DEFAULT_PROVIDER_ID = 'http-enhanced'
@@ -95,7 +95,7 @@ export const Config = withConfigMigrations(z.object({
   maxBodyChars: positiveLimit('maxBodyChars').default(100_000).volatile(),
   timeoutMs: positiveLimit('timeoutMs', MAX_NODE_TIMER_DELAY_MS).default(30_000).volatile(),
   maxRedirects: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(5).volatile(),
-  userAgent: z.string().pattern(/^[\x20-\x7e\x80-\xff]*$/u).default(DEFAULT_USER_AGENT).volatile(),
+  userAgent: z.string().pattern(USER_AGENT_PATTERN).default(DEFAULT_USER_AGENT).volatile(),
 }))
 
 /** Parsed plugin Config: ordinary identity plus stable live field references. */

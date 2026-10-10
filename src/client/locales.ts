@@ -1,6 +1,12 @@
 export const en = {
   title: 'Web Fetch Enhanced',
-  description: 'Allow selected non-public destinations for web_fetch. Public addresses remain available by default.',
+  userAgent: 'User-Agent',
+  userAgentHint: 'Sent on every request. Defaults to the official DSH agent. An empty value sends an empty header; reset restores the inherited value. Changing UA does not guarantee access to protected sites.',
+  userAgentInvalid: 'Use a single HTTP header value without control or non-Latin-1 characters.',
+  userAgentSave: 'Save User-Agent',
+  userAgentDiscard: 'Discard User-Agent changes',
+  userAgentReset: 'Reset User-Agent to inherited value',
+  description: 'Configure non-public destinations and the User-Agent for web_fetch. Public addresses remain available by default.',
   loading: 'Loading configuration…',
   unsaved: 'Unsaved',
   cidrs: 'Allowed CIDRs',
@@ -25,7 +31,13 @@ export type LocaleKey = keyof typeof en
 
 export const zh: Record<LocaleKey, string> = {
   title: 'Web Fetch Enhanced',
-  description: '允许 web_fetch 访问指定的非公网目标；公网地址默认仍可正常访问。',
+  userAgent: 'User-Agent',
+  userAgentHint: '用于每次请求，默认使用官方 DSH 标识。清空会发送空请求头；重置会恢复继承值。修改 UA 不保证能够访问受保护的网站。',
+  userAgentInvalid: '请输入单行 HTTP 请求头值，不能包含控制字符或非 Latin-1 字符。',
+  userAgentSave: '保存 User-Agent',
+  userAgentDiscard: '放弃 UA 修改',
+  userAgentReset: '重置 UA 为继承值',
+  description: '配置 web_fetch 的非公网白名单和 User-Agent；公网地址默认仍可正常访问。',
   loading: '正在加载配置…',
   unsaved: '未保存',
   cidrs: '允许的 CIDR',

@@ -2,6 +2,7 @@ import type { ConfigPageForm, PluginConfigViewProps } from '@deepseek-ai/dsh-cli
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { useEffect, useId, useMemo, useState, useSyncExternalStore } from 'react'
 import type { LocaleKey } from './locales.ts'
+import { UserAgentCard } from './UserAgentCard.tsx'
 
 export interface AllowlistSettings {
   allowCidrs?: string[]
@@ -102,6 +103,9 @@ const cardCss = `
 .web-fetch-enhanced-field{display:flex;flex-direction:column;gap:6px;padding:12px 0}
 .web-fetch-enhanced-field+.web-fetch-enhanced-field{border-top:.5px solid var(--dsw-alias-border-l2)}
 .web-fetch-enhanced-label{font-size:13px;font-weight:500;line-height:1.5}
+.web-fetch-enhanced-input{box-sizing:border-box;width:100%;padding:9px 12px;border:.5px solid var(--dsw-alias-border-l4);border-radius:8px;background:var(--dsw-alias-bg-layer-3);font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--dsw-alias-label-primary)}
+.web-fetch-enhanced-input:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.web-fetch-enhanced-input[aria-invalid='true']{border-color:var(--dsw-alias-state-error-primary)}
 .web-fetch-enhanced-textarea{box-sizing:border-box;width:100%;min-height:96px;resize:vertical;padding:9px 12px;border:.5px solid var(--dsw-alias-border-l4);border-radius:8px;background:var(--dsw-alias-bg-layer-3);font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--dsw-alias-label-primary)}
 .web-fetch-enhanced-textarea:focus-visible{outline:none;border-color:var(--dsw-alias-brand-primary)}
 .web-fetch-enhanced-textarea[aria-invalid='true']{border-color:var(--dsw-alias-state-error-primary)}
@@ -272,5 +276,6 @@ export function AllowlistCard({ form, t }: AllowlistCardProps) {
         >{saving ? t('saving') : t('save')}</button>
       </div>
     </div>
+    <UserAgentCard form={form} t={t} />
   </section>
 }
