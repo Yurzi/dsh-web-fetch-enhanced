@@ -1,20 +1,10 @@
+allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local': set this to true or false
+  '@google/genai': set this to true or false
+  koffi: set this to true or false
+  node-pty: set this to true or false
+  protobufjs: set this to true or false
+# DSH publishes every 0.2.x prerelease as one train; releases younger than
+# pnpm's minimum age would otherwise block an upgrade to the host under test.
 minimumReleaseAgeExclude:
-  - '@deepseek-ai/cordis@4.0.4'
-  - '@deepseek-ai/cordis-plugin-loader@1.0.5'
-  - '@deepseek-ai/schemastery@3.18.4'
-  - '@deepseek-ai/dsh-brand@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-client-locale@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-client-ui-plugin-manager@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-client-ui-renderer@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-client-ui-settings@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-client-ui-slots@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-http-proxy@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-invariants@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-llm@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-scope@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-system-prompt@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-timeout@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-typert-protocol@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-util-crypto@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-util-values@0.2.0-rc.2'
-  - '@deepseek-ai/dsh-web@0.2.0-rc.2'
+  - '@deepseek-ai/*'

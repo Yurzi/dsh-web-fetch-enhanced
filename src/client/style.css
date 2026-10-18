@@ -1,0 +1,285 @@
+/*
+ * Web Fetch Enhanced settings page. Field geometry follows the shell's settings
+ * form fields; every class is prefixed so this sheet cannot reach the shell.
+ */
+
+.wfe-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.wfe-group + .wfe-group {
+  margin-top: 28px;
+}
+
+.wfe-group-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.wfe-group-description {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.wfe-group > .wfe-group-title + *,
+.wfe-group > .wfe-group-description + * {
+  margin-top: 4px;
+}
+
+/* Routing notice */
+
+.wfe-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 10px 12px;
+  border-radius: var(--dsw-radius-md);
+  background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 10%, transparent);
+  color: var(--dsw-alias-state-warn-label, var(--dsw-alias-state-warn-primary));
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.wfe-notice > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.wfe-notice p {
+  margin: 0;
+}
+
+/* Fields */
+
+.wfe-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0;
+}
+
+.wfe-field + .wfe-field,
+.wfe-field + *,
+.wfe-disclosure {
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.wfe-field-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.wfe-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-primary);
+}
+
+.wfe-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wfe-reset {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.wfe-reset:hover:not(:disabled) {
+  color: var(--dsw-alias-label-primary);
+}
+
+.wfe-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+  padding: 8px 12px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-3);
+  font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--dsw-alias-label-primary);
+}
+
+.wfe-textarea::placeholder {
+  color: var(--dsw-alias-label-dimmed, var(--dsw-alias-label-tertiary));
+}
+
+.wfe-textarea:focus-visible {
+  outline: none;
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.wfe-textarea[aria-invalid='true'] {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.wfe-textarea:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}
+
+.wfe-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wfe-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Per-line notes */
+
+.wfe-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wfe-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.wfe-line[data-severity='error'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.wfe-line[data-severity='warning'] {
+  color: var(--dsw-alias-state-warn-label, var(--dsw-alias-state-warn-primary));
+}
+
+.wfe-line > svg {
+  flex: none;
+  margin-top: 3px;
+}
+
+.wfe-line-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6px;
+}
+
+.wfe-line-ref {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.wfe-line code,
+.wfe-chip code {
+  font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.wfe-line-fix {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--dsw-alias-state-business-primary);
+  cursor: pointer;
+}
+
+.wfe-line-fix:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+/* Presets */
+
+.wfe-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wfe-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 0.5px dashed var(--dsw-alias-border-l4);
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.wfe-chip:hover {
+  border-style: solid;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-4);
+}
+
+.wfe-chip code {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Limits disclosure */
+
+.wfe-disclosure-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--dsw-alias-label-tertiary);
+  text-align: start;
+  cursor: pointer;
+}
+
+.wfe-disclosure-toggle:hover {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.wfe-disclosure-panel {
+  padding-left: 12px;
+  border-left: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.wfe-reset:focus-visible,
+.wfe-line-fix:focus-visible,
+.wfe-chip:focus-visible,
+.wfe-disclosure-toggle:focus-visible {
+  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+  border-radius: var(--dsw-radius-sm);
+}

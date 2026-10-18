@@ -1,11 +1,11 @@
-# Optional Profile Bundle: select the enhanced HTTP fetch provider on the Host plane.
-# Disable the native HTTP fetch provider to avoid WEB_PROVIDER_AMBIGUOUS when fetchProvider is unpinned by later bundles.
+# Profile bundle: replace the native HTTP fetch provider in place.
+#
+# The plugin registers its provider as `http`, the id the shipped `web` row
+# already selects with `fetchProvider: http`, so the shared `web` row is left
+# untouched. A patch replaces a row's whole config: rewriting one field of
+# `web` would drop the other (`searchProvider`) and make web_search ambiguous.
 - id: web-fetch-http
   disabled: true
-
-- id: web
-  config:
-    fetchProvider: http-enhanced
 
 - insert:
     - id: web-fetch-enhanced

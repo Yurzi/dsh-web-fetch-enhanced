@@ -1,240 +1,48 @@
 /**
- * DeepSeek Harness HTTP fetch provider with explicit non-public CIDR exceptions.
- * It preserves the native security model while making non-public exceptions explicit.
- *
+ * DeepSeek Harness `web_fetch` with operator-approved non-public
+ * destinations. The plugin takes the native fetch provider's seat in
+ * `ctx.web`, keeps every native safety check, and lets the operator open
+ * specific CIDRs — for example a Clash/Mihomo fake-IP range or an intranet
+ * documentation site — optionally narrowed to named hostnames.
  * @module dsh-web-fetch-enhanced
  */
-
 import type { Context } from '@deepseek-ai/cordis'
-import z from '@deepseek-ai/schemastery'
-import { CONFIG_SCHEMA_VERSION, migrateConfig, withConfigMigrations } from './config-migrations.ts'
+import type {} from '@deepseek-ai/dsh-web'
+import type { WebFetchProvider } from '@deepseek-ai/dsh-web'
+import { Config, readSettings } from './config.ts'
+import { createFetchService } from './providers/index.ts'
+import { registerAllowlistNotice } from './prompt.ts'
 
+export { Config } from './config.ts'
 export { CONFIG_SCHEMA_VERSION, migrateConfig } from './config-migrations.ts'
-import type {} from '@deepseek-ai/cordis-plugin-loader'
-import type {} from '@deepseek-ai/dsh-system-prompt'
-import type { WebFetchProvider, WebFetchRequest, WebFetchResult } from '@deepseek-ai/dsh-web'
-import { AddressPolicy } from './address-policy.ts'
-import type { HttpFetchLimits } from './provider.ts'
-import { EnhancedHttpFetchProvider } from './provider.ts'
-import type { ProxyRouteResolver } from './resolver.ts'
-import { createAllowlistResolver } from './resolver.ts'
-import { DEFAULT_USER_AGENT, USER_AGENT_PATTERN } from './user-agent.ts'
+export { DEFAULT_PROVIDER_ID } from './contract.ts'
+export type { FetchSettings } from './providers/index.ts'
 
-const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647
-
-export { DEFAULT_USER_AGENT } from './user-agent.ts'
-
-/** Default provider id; select it in the dsh-web row with fetchProvider. */
-export const DEFAULT_PROVIDER_ID = 'http-enhanced'
-
-/** Default Loader entry id paired with the Web Profile configuration card. */
-export const SETTINGS_NAMESPACE = 'web-fetch-enhanced'
-
-/** Cordis plugin name used by loader diagnostics. */
+/** Cordis plugin name used in Loader diagnostics. */
 export const name = 'web-fetch-enhanced'
 
-/** The web seam this provider contributes to. */
+/** The capability seam this plugin contributes to. */
 export const inject = ['web']
 
-/** Plugin configuration. Every non-public exception is explicit and deny-by-default. */
-export interface ProviderConfig {
-  /** Configuration format version. Omitted versions are legacy v0. */
-  schemaVersion?: number
-  /** Provider id registered in ctx.web. Defaults to http-enhanced. */
-  providerId?: string
-  /** Non-public IPv4/IPv6 CIDRs that may bypass the public-address filter. */
-  allowCidrs?: readonly string[]
-  /** Optional exact hosts or left-most wildcard rules required in addition to allowCidrs. */
-  allowHostnames?: readonly string[]
-  /** Maximum response body size in bytes. */
-  maxResponseBytes?: number
-  /** Maximum decoded body length in characters. */
-  maxBodyChars?: number
-  /** Default fetch timeout in milliseconds, within Node's timer range. */
-  timeoutMs?: number
-  /** Maximum number of same-origin redirect hops to follow. */
-  maxRedirects?: number
-  /** User-Agent header sent on every request. */
-  userAgent?: string
-}
-
-/** Keep Host-only checks out of the schema serialized for browser forms. */
-function hostValidated<T>(schema: z<T>, validate: (value: T) => void): z<T> {
-  const checked = z.transform(schema, (value) => {
-    validate(value)
-    return value
-  }, true)
-  // Settings strips callbacks from wire schemas. A transform without its callback
-  // cannot validate even the defaults, leaving ConfigForms permanently loading.
-  const presentation = new z<T>(schema.toJSON())
-  checked.toJSON = function () {
-    presentation.meta = { ...schema.meta, ...this.meta }
-    return presentation.toJSON()
-  }
-  return checked
-}
-
-/** Schemastery's number bounds alone do not reject NaN; validate finiteness before commit. */
-function positiveLimit(field: string, max = Number.MAX_VALUE) {
-  return hostValidated(z.number().min(Number.MIN_VALUE).max(max), (value) => {
-    assertPositiveFinite(field, value)
-  })
-}
-
-/** Validate the whole candidate before Loader atomically commits any live references. */
-export const Config = withConfigMigrations(z.object({
-  schemaVersion: z.const(CONFIG_SCHEMA_VERSION).default(CONFIG_SCHEMA_VERSION),
-  providerId: z.string().pattern(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u).default(DEFAULT_PROVIDER_ID),
-  allowCidrs: hostValidated(z.array(z.string()), (value) => {
-    new AddressPolicy({ allowCidrs: value })
-  }).default([]).volatile(),
-  allowHostnames: hostValidated(z.array(z.string()), (value) => {
-    new AddressPolicy({ allowHostnames: value })
-  }).default([]).volatile(),
-  maxResponseBytes: positiveLimit('maxResponseBytes').default(5_000_000).volatile(),
-  maxBodyChars: positiveLimit('maxBodyChars').default(100_000).volatile(),
-  timeoutMs: positiveLimit('timeoutMs', MAX_NODE_TIMER_DELAY_MS).default(30_000).volatile(),
-  maxRedirects: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(5).volatile(),
-  userAgent: z.string().pattern(USER_AGENT_PATTERN).default(DEFAULT_USER_AGENT).volatile(),
-}))
-
-/** Parsed plugin Config: ordinary identity plus stable live field references. */
-export type Config = ReturnType<typeof Config>
-
-interface ResolvedConfig {
-  readonly providerId: string
-  readonly allowCidrs: readonly string[]
-  readonly allowHostnames: readonly string[]
-  readonly maxResponseBytes: number
-  readonly maxBodyChars: number
-  readonly timeoutMs: number
-  readonly maxRedirects: number
-  readonly userAgent: string
-}
-
-/** Build prompt guidance copy informing the model of authorized non-public destinations. */
-export function formatAllowlistPrompt(config: ProviderConfig): string {
-  const cidrs = config.allowCidrs ?? []
-  const hostnames = config.allowHostnames ?? []
-  if (cidrs.length === 0) return ''
-  const authorization = `The operator has explicitly authorized web_fetch access to non-public addresses within [CIDRs: ${cidrs.join(', ')}].`
-  const restriction = hostnames.length === 0 ? ''
-    : ` This exception requires BOTH an address within those CIDRs AND a URL hostname matching one of [hostnames: ${hostnames.join(', ')}]. Hostname rules only restrict the CIDR exceptions; they do not independently authorize any non-public address.`
-  return `${authorization}${restriction} All other URL, DNS, redirect, and transport safety checks still apply.`
-}
-
-/** Construct the provider without mounting it, useful for tests and custom compositions. */
-export function createProvider(
-  config: ProviderConfig = {},
-  proxyResolver?: ProxyRouteResolver,
-): EnhancedHttpFetchProvider {
-  const resolved = resolveConfig(migrateConfig(config) as ProviderConfig)
-  assertProviderId(resolved.providerId)
-  assertPositiveFinite('maxResponseBytes', resolved.maxResponseBytes)
-  assertPositiveFinite('maxBodyChars', resolved.maxBodyChars)
-  assertTimeoutMs(resolved.timeoutMs)
-  assertNonNegativeInteger('maxRedirects', resolved.maxRedirects)
-  const policy = new AddressPolicy({
-    allowCidrs: resolved.allowCidrs,
-    allowHostnames: resolved.allowHostnames,
-  })
-  const limits: HttpFetchLimits = {
-    maxResponseBytes: resolved.maxResponseBytes,
-    maxBodyChars: resolved.maxBodyChars,
-    timeoutMs: resolved.timeoutMs,
-    maxRedirects: resolved.maxRedirects,
-    userAgent: resolved.userAgent,
-  }
-  return new EnhancedHttpFetchProvider(
-    resolved.providerId,
-    limits,
-    createAllowlistResolver(policy),
-    proxyResolver,
-  )
-}
-
-export { isNonPublicIpLiteral } from './address-policy.ts'
-export type { ProxyRouteResolver, ProxyRouteResult } from './resolver.ts'
-export { defaultProxyRoute } from './resolver.ts'
-
-/** Capture one coherent immutable configuration for a single request or prompt assembly. */
-function snapshotConfig(config: Config): ProviderConfig {
-  return {
-    schemaVersion: config.schemaVersion,
-    providerId: config.providerId,
-    allowCidrs: config.allowCidrs.get(),
-    allowHostnames: config.allowHostnames.get(),
-    maxResponseBytes: config.maxResponseBytes.get(),
-    maxBodyChars: config.maxBodyChars.get(),
-    timeoutMs: config.timeoutMs.get(),
-    maxRedirects: config.maxRedirects.get(),
-    userAgent: config.userAgent.get(),
-  }
-}
-
-/** Register a provider backed exclusively by Loader-owned live Config references. */
+/**
+ * Register the fetch provider and, while it serves `web_fetch`, the
+ * allowlist note for the model.
+ * @param ctx - plugin context; both registrations leave with its fiber.
+ * @param config - the Loader-owned live configuration.
+ */
 export function apply(ctx: Context, config: Config): void {
-  // Validate before registration, including compositions that invoke apply directly.
-  const providerId = createProvider(snapshotConfig(config)).id
-  ctx.on('loader/volatile-update', (paths) => {
-    if (paths.some(([field]) => field === 'allowCidrs' || field === 'allowHostnames')) {
-      ctx.emit('system-prompt/change')
-    }
-  })
-
-  ctx.inject(['systemPrompt'], (promptCtx) => {
-    promptCtx.systemPrompt.section({
-      name: 'web-fetch-enhanced:allowlist',
-      order: 2105,
-      text: () => formatAllowlistPrompt(snapshotConfig(config)),
-      interpolate: false,
-    })
-  })
-
-  const dynamicProvider: WebFetchProvider = {
-    id: providerId,
-    available: () => true,
-    fetch: async (request: WebFetchRequest, signal?: AbortSignal): Promise<WebFetchResult> => {
-      return await createProvider(snapshotConfig(config)).fetch(request, signal)
-    },
-  }
-  ctx.web.registerFetchProvider(dynamicProvider)
+  const read = () => readSettings(config)
+  ctx.web.registerFetchProvider(createFetchService(config.providerId, read))
+  registerAllowlistNotice(ctx, config.providerId, read)
 }
 
-function resolveConfig(config: ProviderConfig): ResolvedConfig {
-  return {
-    providerId: config.providerId ?? DEFAULT_PROVIDER_ID,
-    allowCidrs: config.allowCidrs ?? [],
-    allowHostnames: config.allowHostnames ?? [],
-    maxResponseBytes: config.maxResponseBytes ?? 5_000_000,
-    maxBodyChars: config.maxBodyChars ?? 100_000,
-    timeoutMs: config.timeoutMs ?? 30_000,
-    maxRedirects: config.maxRedirects ?? 5,
-    userAgent: config.userAgent ?? DEFAULT_USER_AGENT,
-  }
-}
-
-function assertProviderId(value: string): void {
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(value)) {
-    throw new Error('web-fetch-enhanced: providerId must be 1-128 letters, digits, dots, underscores, or hyphens')
-  }
-}
-
-function assertPositiveFinite(field: string, value: number): void {
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error(`web-fetch-enhanced: ${field} must be a positive finite number`)
-  }
-}
-
-function assertTimeoutMs(value: number): void {
-  assertPositiveFinite('timeoutMs', value)
-  if (value > MAX_NODE_TIMER_DELAY_MS) {
-    throw new Error(`web-fetch-enhanced: timeoutMs must be no greater than ${MAX_NODE_TIMER_DELAY_MS}`)
-  }
-}
-
-function assertNonNegativeInteger(field: string, value: number): void {
-  if (!Number.isInteger(value) || value < 0) {
-    throw new Error(`web-fetch-enhanced: ${field} must be a non-negative integer`)
-  }
+/**
+ * Build the provider outside a Loader-managed composition, for example in a
+ * custom Host or a script.
+ * @param input - raw configuration in any supported format.
+ * @returns a provider with a fixed configuration snapshot.
+ */
+export function createProvider(input: unknown = {}): WebFetchProvider {
+  const config = Config(input)
+  return createFetchService(config.providerId, () => readSettings(config))
 }

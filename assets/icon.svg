@@ -1,0 +1,16 @@
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="16" cy="16" r="9.5" fill="url(#wfe-globe)" fill-opacity="0.85"/>
+  <path d="M16 6.5c-2.5 2.6-3.8 5.8-3.8 9.5s1.3 6.9 3.8 9.5M16 6.5c2.5 2.6 3.8 5.8 3.8 9.5s-1.3 6.9-3.8 9.5M6.5 16h19" stroke="#fff" stroke-opacity="0.8" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M25.5 18.25l5 1.85v3.7c0 2.95-2.08 5.3-5 6.45-2.92-1.15-5-3.5-5-6.45v-3.7l5-1.85z" fill="url(#wfe-shield)"/>
+  <path d="M23.4 24.15l1.45 1.45 2.8-2.9" stroke="#fff" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="wfe-globe" x1="16" y1="6.5" x2="16" y2="25.5" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#69B9FF"/>
+      <stop offset="1" stop-color="#324DE2"/>
+    </linearGradient>
+    <linearGradient id="wfe-shield" x1="25.5" y1="18.25" x2="25.5" y2="30.25" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#45E7A4"/>
+      <stop offset="1" stop-color="#05909D"/>
+    </linearGradient>
+  </defs>
+</svg>

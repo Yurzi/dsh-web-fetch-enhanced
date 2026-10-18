@@ -1,0 +1,10 @@
+# Profile patch: open a fake-IP range for selected sites.
+# Merge into the profile's cordis.patch.yml after installing the bundle. A patch
+# replaces the row's whole config, so restate every field you want to keep.
+# The plugin page in DSH Web edits the same fields without any YAML.
+- id: web-fetch-enhanced
+  config:
+    allowCidrs:
+      - 198.18.0.0/15
+    allowHostnames:
+      - '*.example.com'

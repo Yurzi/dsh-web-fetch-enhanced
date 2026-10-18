@@ -1,11 +1,17 @@
-# Profile user patch after installing the dsh-web-fetch-enhanced bundle.
-# The bundle already inserts this row and selects fetchProvider: http-enhanced.
-# Merge this entry into the existing profile cordis.patch.yml; do not overwrite it.
+# Profile patch: keep the native provider and register this plugin beside it.
+# Only needed when something else must keep using the native `http` provider.
+- id: web-fetch-http
+  disabled: false
+
 - id: web-fetch-enhanced
   config:
-    schemaVersion: 1
+    providerId: http-enhanced
     allowCidrs:
       - 198.18.0.0/15
-    # Optional hostname second factor for non-public exceptions.
-    allowHostnames:
-      - '*.example.com'
+
+# Route web_fetch to the plugin. A patch replaces the row's whole config:
+# restate searchProvider too, or web_search loses its pinned provider.
+- id: web
+  config:
+    searchProvider: deepseek-official
+    fetchProvider: http-enhanced
