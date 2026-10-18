@@ -2,81 +2,122 @@
 
 ## 1. 信任边界
 
-<code>web_fetch</code> 的 URL 来自模型，必须视为不可信输入；DNS、HTTP 响应、redirect 与正文也都不可信。operator 的 Host composition 和本插件白名单属于受信配置。
+`web_fetch` 的 URL 来自模型，是不可信输入；DNS 答案、HTTP 响应、重定向和正文同样不可信。Host 组合和本插件的白名单是 operator 的受信配置。
 
-本插件的核心安全假设是：只有 operator 能修改 <code>allowCidrs</code> 与 <code>allowHostnames</code>。白名单不会作为模型工具参数暴露。
+核心假设：只有 operator 能修改 `allowCidrs` 和 `allowHostnames`。白名单不是模型工具的参数，模型无法扩大自己的可达范围。
 
-## 2. 主要威胁与缓解
+## 2. 职责划分
+
+0.1.0 起，传输层直接使用官方 `@deepseek-ai/dsh-web-fetch-http` 的 `HttpFetchProvider`，插件只负责地址判断。
+
+| 职责 | 实现位置 |
+| --- | --- |
+| URL 解析、只允许 http(s)、长度 ≤ 2048、拒绝 URL 内嵌凭据 | 官方 transport |
+| 只发 GET，不带 cookie、Authorization 或环境凭据 | 官方 transport |
+| 代理路由（`proxyRouteFor`） | 官方 transport |
+| 交给 transport 之前检查 URL 中的 IP 字面量 | 插件 `providers/local/index.ts` |
+| 同源重定向、跳数上限、每一跳重新解析和校验 | 官方 transport（每跳调用插件解析器） |
+| 连接固定：请求内的连接只使用解析器返回的地址，Host 头和 SNI 保持原域名 | 官方 transport |
+| 超时、字节上限、字符上限、MIME 与 charset | 官方 transport |
+| 地址策略：公网放行，非公网须命中 CIDR 和域名规则 | 插件 `address-policy.ts` |
+| DNS 全答案集校验、IPv4 映射地址按 IPv4 判断 | 插件 `resolver.ts`、`address-policy.ts` |
+| DNS64 / NAT64 前缀发现与内嵌 IPv4 检查 | 插件 `resolver.ts` |
+| 白名单语法（Host 与插件页共用） | 插件 `rules.ts` |
+
+官方 transport 的变化会直接影响本插件。升级 DSH 时要复查这一层的行为，见第 6 节。
+
+## 3. 威胁与缓解
 
 ### SSRF 到本机、内网和元数据服务
 
-默认策略只允许公网单播。loopback、RFC1918、link-local、CGNAT、ULA、benchmark/fake-IP、组播、保留网段均拒绝。只有显式 CIDR 例外可以扩大可达面。
-
-云元数据地址（例如 <code>169.254.169.254</code>）不要加入白名单。也不要使用 <code>0.0.0.0/0</code>、<code>::/0</code> 或宽泛 RFC1918 网段来“解决”单一代理路由问题。
+默认只允许公网单播。回环、RFC 1918、链路本地、CGNAT、ULA、基准测试网段（Fake-IP 所在的 `198.18.0.0/15`）、组播和保留地址全部拒绝。只有显式配置的 CIDR 能扩大可达范围；配置了域名规则时，还要求 URL 的域名命中。
 
 ### DNS rebinding 与检查后再解析
 
-解析使用完整答案集，一项失败则全部失败。通过策略的答案直接交给 request-local Undici lookup；transport 不会重新查询 URL hostname。URL hostname 仍保留用于 Host header 和 TLS SNI。
+域名只解析一次。解析器返回完整的已验证答案集，官方 transport 的连接只使用这些地址，不会再查询 DNS。检查和连接之间没有第二次解析的窗口。
 
-### 混合 DNS 答案绕过
+### 混合答案
 
-攻击者可能返回一个公网地址和一个私网地址。实现不会挑选“第一个安全答案”，而是拒绝整个集合，避免连接层稍后选中私网答案。
+攻击者可能让一个域名同时解析到公网地址和内网地址。解析器不挑选“安全的那个”，任一答案不合规就拒绝整个请求，避免连接层随后选中内网地址。
 
-### IPv4-mapped IPv6 与 NAT64
+### IPv4 映射地址与 NAT64
 
-IPv4-mapped IPv6 按嵌入 IPv4 分类。对于活动 DNS64，自定义 RFC 6052 前缀通过 <code>ipv4only.arpa</code> 发现；映射后的 IPv4 也必须为公网或命中白名单。这样不会因 translator 的公网 IPv6 外观而隐藏内网 IPv4。
+`::ffff:a.b.c.d` 和已废弃的 IPv4 兼容地址按内嵌的 IPv4 判断。答案中有 IPv6 时，解析器查询 `ipv4only.arpa`（RFC 7050）发现活动的 DNS64 前缀，并按 RFC 6052 的各种前缀长度取出内嵌 IPv4，它同样必须是公网或命中白名单。多个前缀重叠时全部检查，不依赖答案顺序。
 
-### Redirect 逃逸
+### 代理
 
-只跟随 301、302、303、307、308；只允许 scheme、hostname 和 port 都相同的 redirect。每一跳重新执行 URL、DNS、白名单和连接固定。跨源地址必须由新的工具调用显式请求。
+走代理的域名由代理解析，Host 不做本地 DNS 检查，与原生行为一致。目标是否可达由代理的策略决定。
+
+IP 字面量不需要解析，官方 transport 对它的处理是：判定为公网的直接交给代理，不调用解析器；判定为非公网的走解析器并直连。官方的判定把 IPv4 兼容的 IPv6（如 `[::7f00:1]`，内嵌 `127.0.0.1`）当作公网，这样的地址会被原样交给代理，而代理通常运行在本机，能连到回环或内网服务。因此插件在交给 transport 之前，先用自己的地址策略检查 URL 中的 IP 字面量：白名单外的非公网地址直接报 `WEB_BLOCKED_URL`，请求不会到达代理。重定向只在同源内跟随，主机不变，检查请求 URL 就覆盖了每一跳。[tests/proxy.spec.ts](../tests/proxy.spec.ts) 在真实安装的代理策略下验证了这一点。
+
+### 重定向逃逸
+
+只跟随同源（scheme、host、port 都相同）重定向，每一跳重新执行 URL 检查、DNS 校验和连接固定。跨源目标由模型重新发起一次抓取，接受同样的检查。
 
 ### 凭据与横向权限
 
-请求固定为 GET，不发送 cookie、Authorization 或环境中的 ambient credentials，也不接受 URL username/password。自定义 User-Agent 不应包含秘密。
+请求固定为匿名 GET，不接受 URL 中的用户名和密码，不发送任何环境凭据。User-Agent 由 operator 配置，不要在其中放秘密。
 
-### 资源耗尽和恶意内容
+### 资源耗尽与恶意内容
 
-URL、响应字节、解码字符、redirect 跳数和 provider 时间均有上限。只接受 HTML、XHTML、text/*、JSON/XML 与 +json/+xml；二进制内容拒绝。响应正文仍是外部不可信数据，模型必须把它作为数据而非指令。
+URL 长度、响应字节、解码字符、重定向跳数和总时间都有上限。只接受 HTML、XHTML、`text/*`、JSON、XML 及 `+json` / `+xml`。正文仍是外部数据，模型必须把它当作数据而不是指令。
 
-## 3. fake-IP 特有风险
+### 误导模型
 
-在 Clash/Mihomo fake-IP 模式下，<code>198.18.0.0/15</code> 往往是“任意域名”的代理句柄，而不是一个单一后端。放行整个网段意味着所有解析到该 fake-IP 池的域名都满足地址条件。
+给模型的白名单说明只在本插件确实服务 `web_fetch` 时出现；切到其他 provider 后自动消失，不会让模型以为能访问其实不可达的内网。说明本身不授予任何权限，所有检查照常执行。
+
+## 4. Fake-IP 的特有风险
+
+Clash / Mihomo 的 Fake-IP 模式下，`198.18.0.0/15` 里的地址是代理为任意域名分配的句柄，不对应某一台后端。放行整个网段，等于让所有解析到 Fake-IP 池的域名都满足地址条件，真实目标由代理决定。
 
 建议：
 
-1. 确认该网段只由受控透明代理接管；
-2. 只放行代理实际使用的最小 CIDR；
-3. 若业务站点集合有限，同时配置 <code>allowHostnames</code>；
-4. 确认代理对本机、内网和元数据目的地仍有独立拒绝规则；
-5. 不要把普通 HTTP forward proxy 的地址误当作目标白名单；本插件没有实现 CONNECT 或代理认证。
+1. 确认该网段只由你控制的透明代理接管；
+2. 只放行代理实际使用的网段；
+3. 访问的站点有限时，同时配置 `allowHostnames`；
+4. 确认代理对本机、内网和元数据地址仍有自己的拒绝规则；
+5. 不要把普通 HTTP 代理的地址当成目标加入白名单。
 
-<code>allowHostnames</code> 只能限制 URL hostname，不能验证代理最终选择的真实上游。最终路由仍依赖透明代理的可信配置。
+`allowHostnames` 只能约束 URL 中的域名，无法验证代理最终连到哪个上游，最终路由仍取决于代理配置。
 
-## 4. 配置审查建议
+## 5. 插件页的警告
 
-对白名单变更做代码审查，并记录：
+插件页对已接受的网段给出不阻止保存的警告：
 
-- CIDR 所有者和用途；
+- 包含云元数据地址 `169.254.169.254`（或 `fd00:ec2::254`）：可能泄露实例凭据，几乎不应放行；
+- 包含本机回环：模型将能访问本机上的服务；
+- 范围过宽：IPv4 短于 /8 或 IPv6 短于 /16；
+- 公网网段：没有作用，通常是填错了。
+
+这些警告是辅助，不是安全边界。Host 在保存和启动时独立校验所有规则；浏览器端的检查可以被绕过，也不能代替审查。
+
+## 6. 配置审查
+
+白名单变更应当经过审查，并记录：
+
+- 每个 CIDR 的所有者和用途；
 - 为什么原生 public-only 策略不适用；
-- 是否属于 fake-IP、VPN、服务网格或真实内网服务；
-- 是否可以增加 hostname 第二因子；
-- 过期时间和撤销负责人；
-- 代理/路由层仍保留哪些目的地拒绝规则。
+- 属于 Fake-IP、VPN、服务网格还是真实内网服务；
+- 能否加上域名规则；
+- 有效期和撤销负责人；
+- 代理或路由层还保留哪些目标拒绝规则。
 
-## 5. 上线检查表
+升级 DSH 时额外复查：`HttpFetchProvider` 的构造参数和解析器契约、`WebFetchProvider` / `WebFetchResult` / `WebError` 类型、代理路由对 IP 字面量的处理、重定向与超时分类，以及 `web` 行的选择语义。
 
-- [ ] 本插件挂在 Host composition，而不是 agent preset；
-- [ ] <code>web.fetchProvider</code> 显式指向预期 ID；
-- [ ] 若使用 <code>providerId: http</code>，原生 http provider 已禁用；
-- [ ] <code>allowCidrs</code> 是最小范围且没有默认路由；
-- [ ] 宽 fake-IP 网段已评估并尽可能增加 <code>allowHostnames</code>；
-- [ ] loopback、RFC1918、link-local、云元数据仍有负向测试；
-- [ ] 混合公网/私网 DNS 答案会失败；
-- [ ] 同源 redirect 正常，跨源 redirect 失败；
-- [ ] timeout、字节和字符上限符合部署预算；
-- [ ] 代理不会把白名单地址绕到未授权的内网目的地；
-- [ ] 运行 <code>pnpm run check</code> 并在实际 Profile 中执行一次允许和一次拒绝用例。
+## 7. 上线检查表
 
-## 6. 安全报告
+- [ ] 插件装在 Host 的 Profile 组合中，不在 agent preset 中；
+- [ ] `dsh --profile web --dump-config` 显示：`web-fetch-http` 已停用，`web` 行同时有 `searchProvider` 和 `fetchProvider`；
+- [ ] `web.fetchProvider` 指向插件实际注册的 id（默认 `http`）；
+- [ ] `web_search` 和 `web_fetch` 各调用一次，都没有 `WEB_PROVIDER_AMBIGUOUS`；
+- [ ] `allowCidrs` 是最小范围，没有 `0.0.0.0/0`、`::/0` 或元数据地址；
+- [ ] 宽 Fake-IP 网段已评估，能加域名规则的已经加上；
+- [ ] 回环、RFC 1918、链路本地和元数据地址的拒绝用例仍然失败；
+- [ ] 同源重定向成功，跨源重定向失败；
+- [ ] 超时、字节和字符上限符合部署预算；
+- [ ] 代理不会把白名单地址转到未授权的内网目标；
+- [ ] 在实际 Profile 中执行一次允许用例和一次拒绝用例。
 
-报告问题时请提供：DSH 版本、本插件版本、最小 composition、URL 的解析答案、预期/实际错误 code，以及是否启用 DNS64、fake-IP 或透明代理。不要在公开 issue 中提交凭据、内网域名或敏感响应正文。
+## 8. 报告问题
+
+见 [SECURITY.md](../SECURITY.md)。请提供 DSH 版本、插件版本、最小的 Profile patch、相关 URL 的解析结果、预期和实际的错误 code，以及是否启用了 DNS64、Fake-IP 或透明代理。不要在公开 issue 中提交凭据、内网域名或敏感响应正文。

@@ -49,6 +49,8 @@ describe('hostname rules', () => {
     ['wiki.example.com:8080', { code: 'not-hostname', fix: 'wiki.example.com' }],
     ['user@example.com', { code: 'syntax' }],
     ['fe80::1%eth0', { code: 'zone' }],
+    // No URL can carry this host, so the rule could only mislead.
+    ['::ffff:010.0.0.1', { code: 'syntax' }],
   ])('refuses %j', (rule, problem) => {
     expect(parseHostnameRule(rule)).toEqual({ ok: false, problem })
   })

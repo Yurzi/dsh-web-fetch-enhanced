@@ -2,282 +2,172 @@
 
 [中文](README.md) · [English](README.en.md)
 
-> Safe, operator-controlled web fetching for DeepSeek Harness. It solves Clash / Mihomo fake-IP and trusted private-network access without changing how agents use `web_fetch`.
+A DeepSeek Harness (DSH) plugin that lets `web_fetch` reach the non-public addresses you explicitly approve, such as a Clash / Mihomo fake-IP range or an intranet documentation site, while every other safety check stays the official HTTP fetch implementation. Installing it replaces the native provider in place: the model-facing tool name, arguments, and results do not change, and with no ranges configured it behaves exactly like the native provider.
 
-## What does it solve?
+## What problem it solves
 
-The native DeepSeek Harness HTTP provider rejects non-public addresses by default. That is an important SSRF boundary, but it can also block trusted targets in environments where:
+The native `web_fetch` connects only to public unicast addresses. That is the SSRF boundary, and it also blocks trusted targets with `WEB_BLOCKED_URL`:
 
-- Clash, Mihomo, or another transparent proxy resolves public domains into a fake-IP range such as `198.18.0.0/15`;
-- an agent must read a trusted intranet documentation site or self-hosted knowledge base; or
-- a local proxy needs to take over the connection after Harness performs its address check.
+- with fake-IP enabled, Clash, Mihomo, and similar proxies resolve public domains into `198.18.0.0/15` and take over the connection;
+- an agent needs to read an intranet wiki, a self-hosted documentation site, or another private service.
 
-This plugin adds two explicit exception layers:
+The plugin adds two exception layers that you configure:
 
-1. a **CIDR allowlist** for non-public IPv4 and IPv6 ranges; and
-2. an optional **hostname allowlist** that limits which hosts may use those CIDR exceptions.
+1. a **CIDR allowlist**: the non-public IPv4 / IPv6 ranges that may be reached;
+2. an optional **hostname allowlist**: only these hostnames may use those ranges.
 
-With an empty CIDR allowlist, the security boundary remains equivalent to the native public-only provider.
+Public addresses stay reachable either way; neither list restricts them.
 
-## Highlights
+## Install
 
-- **No new model tool** — agents continue to call the existing `web_fetch` tool;
-- **Live Web settings** — edit the allowlist in DSH Web and use it on the next fetch;
-- **Deny non-public destinations by default** — only explicit CIDR matches become exceptions;
-- **Optional hostname second factor** — restrict an allowed range to exact names or `*.example.com` rules;
-- **Whole-answer DNS validation and address pinning** — every DNS answer must pass, and transport uses only validated addresses;
-- **Redirect revalidation** — same-origin redirects are resolved, validated, and pinned again at every hop;
-- **Anonymous bounded GET requests** — no cookies, Authorization header, or URL credentials;
-- **Resource limits** — URL length, response bytes, decoded characters, redirects, and time are bounded;
-- **IPv4 and IPv6 coverage** — including IPv4-mapped IPv6 and active DNS64 / NAT64 checks;
-- **Outbound HTTP proxy alignment** — seamlessly respects DSH global proxy routes (`HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` / `NO_PROXY`), while refusing unvalidated private IP literals from bypassing address checks through the proxy;
-- **Dynamic system prompt alignment** — automatically injects explicit authorization guidance into the system prompt when non-public allowlists are configured, eliminating LLM refusal hallucinations when fetching authorized private destinations.
-
-## Compatibility & Support Policy
-
-- **Minimum Supported DSH Version**: `0.2.0-rc.2` (supported range: `>=0.2.0-rc.2 <0.3.0-0`)
-- **v0.0.12 update**: [Custom User-Agent release notes](<docs/releases/0.0.12.md>).
-- **v0.0.11 update**: [Configuration versioning and runtime migration release notes](<docs/releases/0.0.11.md>).
-- **Support Policy**: This plugin **only supports DeepSeek Harness RC (Release Candidate) releases and future stable releases**. Compatibility is not maintained for rapid-moving Alpha or development snapshot versions.
-
-## Quick start
-
-### 1. Install into the Web Profile
-
-Use the DSH plugin manager. The package contributes its published `cordis.patch.yml` as a Profile patch layer:
+Requires DSH `>=0.2.1-rc.2 <0.3.0-0`.
 
 ```bash
 dsh plugin --profile web add dsh-web-fetch-enhanced
 ```
 
-If the Web Profile is already running, restart its Host process using your deployment's normal method so the new Host plugin and Client face are loaded.
+The bundle patch does two things only: it disables the native `web-fetch-http` row and inserts this plugin's `web-fetch-enhanced` row. The shared `web` row is left as it is.
 
-For local source development, use an absolute link:
+- With DSH 0.2.1 hot reload (HMR) the install usually takes effect at once. If it does not, restart the Host; if the settings page does not appear in the browser, reload the page once.
+- **Upgrading**: under HMR, adding an already installed package returns `already-installed`. Use Update on the Plugins page (it removes, then adds), or run:
 
-```bash
-dsh plugin --profile web add link:/absolute/path/to/dsh-web-fetch-enhanced
-```
+  ```bash
+  dsh plugin --profile web remove dsh-web-fetch-enhanced
+  dsh plugin --profile web add dsh-web-fetch-enhanced@<version>
+  ```
 
-### 2. Configure the allowlist
+- Upgrading from 0.0.x to 0.1.0 is breaking; read the upgrade steps in the [CHANGELOG](CHANGELOG.md) first.
+- Removing the plugin re-enables the native `web-fetch-http` row.
 
-Open DSH Web and go to:
+## Configure on the Plugins page
 
-**Plugins → dsh-web-fetch-enhanced**
+Open DSH Web and go to **Plugins → Web Fetch Enhanced**. The page has two groups:
 
-The details page shows the allowlist form directly. Enter one network per line under **Allowed CIDRs**. For a typical Clash / Mihomo fake-IP setup:
+- **Private network access**: "Allowed ranges (CIDR)" and "Only for these hostnames (optional)", one rule per line;
+- **Requests**: the User-Agent, and under "Limits" the timeout, bytes read, characters returned, and redirects followed.
+
+One Save button writes every change at once. A field you changed shows "Customized"; its Reset removes that override and restores the inherited value. Saved values apply to the next `web_fetch` without a restart; a request already running keeps the configuration it started with. Leaving the page drops unsaved edits.
+
+### Common setups
+
+**Fake-IP**: click "Clash / Mihomo fake-IP" to add `198.18.0.0/15`. It covers the default Clash / Mihomo `fake-ip-range`; if your proxy uses another range, enter that range.
+
+**Hostname second factor**: a fake-IP range can carry any domain. To let only a few sites use the exception, list them under "Only for these hostnames":
 
 ```text
-198.18.0.0/15
-```
-
-To let only selected sites use this exception, add hostnames as a second factor:
-
-```text
-api.example.com
+wiki.example.com
 *.docs.example.com
 ```
 
-Choose **Save**. The page shows **Saved** and keeps the fields visible. The next `web_fetch` uses the new policy; no Profile restart is required.
+`*.docs.example.com` matches subdomains only, not `docs.example.com` itself.
 
-DSH displays component status below the form. You do not need to open a component to configure the allowlist.
+**Intranet sites**: open only the smallest range you need, for example `10.20.0.0/16`, not all of `10.0.0.0/8`.
 
-### 3. Keep using `web_fetch` normally
+### How the two lists combine
 
-The agent-facing workflow does not change. Ask naturally, for example:
+| Destination | Inside a CIDR | Hostname rules | Result |
+| --- | --- | --- | --- |
+| Public | not needed | not needed | allowed |
+| Non-public | no | any | refused |
+| Non-public | yes | none configured | allowed |
+| Non-public | yes | configured, matched | allowed |
+| Non-public | yes | configured, not matched | refused |
 
-> Read https://docs.example.com/guide and summarize the deployment steps.
+### Line-by-line checks
 
-The agent calls `web_fetch` as usual. This plugin performs address resolution, policy checks, and pinned transport underneath it.
+The page checks each line with the same rules the Host uses:
 
-## Custom User-Agent
+- **Errors** block saving and, where one correction is meant, offer it in one click. `198.18.1.1/15` has host bits set and becomes `198.18.0.0/15`; `https://wiki.example.com/page` is a URL and becomes `wiki.example.com`. A repeated line is an error too.
+- **Warnings** do not block saving; they ask for a second look: the range includes the cloud metadata address `169.254.169.254`, includes loopback, is very broad (shorter than /8 for IPv4 or /16 for IPv6), or is public (public addresses are reachable anyway, so the line changes nothing).
 
-Open **Plugins → dsh-web-fetch-enhanced**, edit **User-Agent** below the allowlists, and choose **Save User-Agent**. This is Profile-scoped and takes effect on the next `web_fetch` without a restart. In-flight requests keep their original snapshot. Direct requests, proxy requests, and every same-origin redirect hop use the configured UA.
+Emptying a list and saving stores an explicit empty list, which revokes every inherited exception. That is not the same as Reset.
 
-- When omitted, the default matches official DSH: `deepseek-harness/0.0.1 (+https://github.com/deepseek-ai)`, not a browser UA.
-- **Discard User-Agent changes** restores the effective value without writing.
-- **Reset User-Agent to inherited value** stages removal of the UA override; choose **Save User-Agent** to apply. It restores a configured base UA, or the official default when absent.
-- UA actions never change either allowlist. The two editors save independently. A save in one editor can make the other draft stale; a conflicting write is rejected. Discard and re-edit to retry.
-- An explicit empty string sends an empty UA header; it does **not** mean reset to default.
-- Browser and Host validation reject CR/LF, other control characters, and non-Latin-1 characters. UA is not a model-facing tool parameter.
-- Changing UA may improve compatibility but does not emulate browser TLS fingerprints, run JavaScript, solve CAPTCHAs, or guarantee bypassing bot detection.
+## YAML configuration
 
-Alternatively, add this fragment to the existing plugin row (do not register another provider):
+You can also configure the plugin row in the Profile's `cordis.patch.yml`; see [examples/allowlist.cordis.yml](examples/allowlist.cordis.yml):
 
 ```yaml
-config:
-  userAgent: "my-fetch-client/1.0"
+- id: web-fetch-enhanced
+  config:
+    allowCidrs:
+      - 198.18.0.0/15
+    allowHostnames:
+      - '*.example.com'
 ```
 
-After upgrading, configurations without an explicit UA use the official default. Existing overrides, including the old product UA and empty strings, are preserved. The format is unchanged, so `schemaVersion` remains `1`.
+A patch replaces the row's whole `config`, so restate every field you want to keep. Every field, default, and rule is described in the [configuration reference](docs/configuration.zh-CN.md) (Chinese).
 
-## Common setups
+## How it works
 
-### Clash / Mihomo fake-IP
+- The plugin registers one fetch provider in `ctx.web` with the id `http`, taking the native provider's seat; the `web` row's existing `fetchProvider: http` therefore selects it.
+- Each request reads one configuration snapshot and runs through the official `HttpFetchProvider` from `@deepseek-ai/dsh-web-fetch-http`. URL rules, same-origin redirects, proxy routing, connection pinning, timeouts, size caps, and MIME / charset handling are upstream code.
+- The plugin replaces only its DNS resolution: resolve once, check every answer. Public addresses pass; a non-public address must fall inside a CIDR and, when hostname rules exist, belong to a matching hostname. If any answer fails, the whole request is refused. IPv4 addresses reached through NAT64 are checked too.
+- The validated address set is what the connection uses; the hostname is not resolved again after the check.
+- When CIDRs are configured and this plugin serves `web_fetch`, it gives the model a runtime context naming the approved ranges and hostnames, so the model does not refuse intranet URLs up front.
 
-When the entire fake-IP range is controlled by a trusted proxy:
+## Compatibility and support policy
 
-| Setting | Value |
-| --- | --- |
-| Allowed CIDRs | `198.18.0.0/15` |
-| Allowed hostnames | Empty |
-
-An empty hostname list means any hostname may use an allowed CIDR exception. Public addresses remain available normally.
-
-### Restrict fake-IP access to selected hosts
-
-| Setting | Value |
-| --- | --- |
-| Allowed CIDRs | `198.18.0.0/15` |
-| Allowed hostnames | `api.example.com`, `*.docs.example.com` |
-
-This is the safer choice when you do not fully control the proxy's routing rules.
-
-### Access a trusted intranet site
-
-```text
-# Allowed CIDRs
-10.20.0.0/16
-
-# Allowed hostnames
-wiki.corp.example
-*.docs.corp.example
-```
-
-Allow only the smallest range you actually need. Do not add all RFC 1918 space for convenience.
-
-## Allowlist syntax
-
-### CIDRs
-
-- Enter one standard IPv4 or IPv6 CIDR per line.
-- IPv4 uses four-part decimal network addresses, such as `192.168.1.0/24`.
-- IPv6 zone IDs such as `%eth0` are not accepted.
-- Use the network base address, not an address with host bits set.
-- Blank lines are ignored. Duplicate entries are reported by the settings card and block saving.
-
-### Hostnames
-
-- Exact rule: `api.example.com`.
-- Left-most wildcard rule: `*.example.com`.
-- `*.example.com` matches subdomains but **does not match** `example.com` itself.
-- Do not include a scheme, path, or port. Values such as `https://example.com`, `example.com/path`, and `example.com:8080` are invalid.
-- Hostname rules apply only to non-public CIDR exceptions. They do not restrict destinations that were already public.
-
-### How the two layers combine
-
-| Destination | CIDR match | Hostname allowlist | Result |
-| --- | --- | --- | --- |
-| Public address | Not required | Not required | Allow |
-| Non-public address | No | Any | Deny |
-| Non-public address | Yes | Not configured | Allow |
-| Non-public address | Yes | Match | Allow |
-| Non-public address | Yes | No match | Deny |
-
-## Settings actions
-
-- **Save** writes both allowlists in one mutation to the selected Profile plugin row. Host rejection or a revision conflict is not reported as success.
-- **Discard** drops unsaved edits and restores effective values.
-- **Restore inherited values** stages removal of both allowlist overrides; choose **Save** to apply. Inherited values may contain a non-empty allowlist, so review the resulting policy.
-- **Read-only** means the form is not ready, the row is unavailable, or the connection cannot write. The card never falls back to another Profile or global configuration.
-
-## Profile configuration and migration
-
-Starting with DSH `0.1.7-rc.1`, this plugin uses Profile-owned Cordis `Config`, `.volatile()`, and plugin-manager `configForms`. It no longer reads global `$DSH_HOME/settings.yaml`.
-
-- Effective configuration combines schema defaults with the current Profile composition/patch. Web edits target only the selected plugin row.
-- **Clearing a field and saving writes an explicit `[]`** to revoke inherited allowlists. Empty arrays are meaningful security overrides and are no longer pruned.
-- **Restore is not clear**: only an explicit restore uses `unset`, which may reactivate an inherited allowlist.
-- Back up legacy settings, review the old `web-fetch-enhanced` section, and move intended rules into the target Profile plugin configuration. Global authorizations are never automatically copied to every Profile.
-
-See the [0.1.7-rc.1 migration notes (Chinese)](docs/migration-0.1.7-rc.1.zh-CN.md).
-
-### Plugin configuration format version
-
-The plugin supports `schemaVersion: 1`, independent of its package version. Unversioned configurations are treated as v0 and automatically migrated to v1 in memory. Invalid or future versions are rejected rather than silently downgraded. Migration does not rewrite user files or change allowlist authorization. See the [configuration versioning design (Chinese)](<docs/config-versioning.zh-CN.md>).
-
-## Security guidance
-
-> **An allowlist expands the network locations an agent can request. Allow only the smallest destinations you understand and trust.**
-
-Do not allow broad or sensitive targets such as:
-
-- `0.0.0.0/0` or `::/0`;
-- cloud metadata endpoints such as `169.254.169.254/32`;
-- all of `10.0.0.0/8`, `172.16.0.0/12`, or `192.168.0.0/16` unless genuinely required; or
-- ranges jointly controlled by untrusted proxy, DNS, or tenant infrastructure.
-
-The Host still performs complete CIDR, hostname, DNS, and provider validation after a Web edit. Browser validation is never the security boundary. See the [security design](docs/security.zh-CN.md) for the threat model and launch checklist.
-
-## Advanced configuration
-
-The allowlists and User-Agent are editable in DSH Web. Manage other values in the Profile composition:
-
-| Field | Default | Purpose |
-| --- | --- | --- |
-| `schemaVersion` | Missing means v0; normalized to `1` | Configuration format version, not a live-editable form field |
-| `providerId` | `http-enhanced` | Fetch provider ID registered in `ctx.web` |
-| `allowCidrs` | `[]` | Non-public IPv4 / IPv6 CIDR exceptions |
-| `allowHostnames` | `[]` | Optional exact hosts or left-most wildcard rules |
-| `maxResponseBytes` | `5,000,000` | Maximum response bytes read |
-| `maxBodyChars` | `100,000` | Maximum decoded characters |
-| `timeoutMs` | `30,000` | Fetch timeout in milliseconds |
-| `maxRedirects` | `5` | Maximum same-origin redirect hops; `0` disables following |
-| `userAgent` | `deepseek-harness/0.0.1 (+https://github.com/deepseek-ai)` | Official DSH default; editable in Web GUI; sent with each request |
-
-The default bundle uses the separate `http-enhanced` provider ID and explicitly disables the native `web-fetch-http` provider to avoid `WEB_PROVIDER_AMBIGUOUS` when subsequent Web plugins (such as search plugins) overwrite `id: web` configuration and unpin `fetchProvider`. For manual composition or drop-in replacement, see:
-
-- [coexisting provider example](examples/coexist.cordis.yml)
-- [drop-in replacement example](examples/drop-in.cordis.yml)
-- [manual composition patch](examples/manual.cordis.patch.yml)
-- [architecture and provider selection](docs/design.zh-CN.md)
-
-> Never register the native provider and this plugin under the same ID. The Host fails with `WEB_DUPLICATE_PROVIDER`; it does not use last-wins replacement.
+- DSH: `>=0.2.1-rc.2 <0.3.0-0`. 0.2.0-rc.2 is no longer supported; stay on 0.0.12 for that version.
+- Node.js: `^22.19.0 || >=24.0.0`.
+- Only DSH release candidates and stable releases are supported. Alpha builds and development snapshots change too often and carry no stable API, so they are not targeted.
+- The DSH 0.3 series will be evaluated before the upper bound moves.
 
 ## FAQ
 
 <details>
-<summary><strong>Why does enabling Clash / Mihomo make an ordinary public site look non-public?</strong></summary>
+<summary><strong>The plugin page says web_fetch is served by "deepseek-fetch-api"</strong></summary>
 
-Fake-IP mode resolves the domain into a reserved range such as `198.18.0.0/15`, then takes over routing. The native provider checks the answer before the proxy can take over. Add the actual fake-IP range used by your proxy to Allowed CIDRs.
+"Use the new Web Search API" is on under **Plugins → Built-in plugin settings → Web search**. That switch routes `web_fetch` to the DeepSeek Fetch API, so this plugin's settings have no effect. Turn it off to switch back to `http`, which is this plugin. The DeepSeek Search / Fetch API itself is unaffected by this plugin.
 </details>
 
 <details>
-<summary><strong>Do allowlist changes require a restart?</strong></summary>
+<summary><strong>web_search or web_fetch fails with WEB_PROVIDER_AMBIGUOUS</strong></summary>
 
-No. After a successful Web settings save, the next `web_fetch` uses the new policy. Installing, removing, or upgrading the plugin itself may require a Host restart depending on your deployment.
+The `web` row lost `searchProvider` or `fetchProvider`. A patch replaces a row's whole `config`: a patch that writes one field drops the other, and the missing one falls back to automatic selection. DSH 0.2.1 mounts the DeepSeek Search / Fetch API providers by default and they are always available, so automatic selection finds several candidates and fails. The 0.0.12 bundle patch broke `web_search` exactly this way.
+
+Fix: upgrade to 0.1.0, which no longer rewrites the `web` row; run `dsh --profile web --dump-config`, find the patch that writes only one field of `web`, and restate both. As a temporary workaround, set `DSH_WEB_SEARCH_PROVIDER` / `DSH_WEB_FETCH_PROVIDER`.
 </details>
 
 <details>
-<summary><strong>Why is the settings card read-only?</strong></summary>
+<summary><strong>After upgrading, web_fetch fails with WEB_PROVIDER_CONFIGURED_MISSING</strong></summary>
 
-Verify that the target Profile plugin row is enabled, its form is available, and the current connection has configuration write permission. An unavailable form never falls back to a different configuration.
-
-If both inputs remain disabled on DSH `0.1.7-rc.1` while the card renders normally, update to a build containing the configuration schema serialization fix, restart the Host, and refresh the page. Older builds expose custom validators whose callbacks are stripped during transport, preventing the browser form from becoming ready. The fix retains full Host validation.
+0.1.0 registers as `http` by default instead of `http-enhanced`. If your Profile still carries `web.fetchProvider: http-enhanced` or `providerId: http-enhanced` on the plugin row, remove those overrides; if you need `http-enhanced`, use the coexistence setup below.
 </details>
 
 <details>
-<summary><strong>Why does `*.example.com` not allow `example.com`?</strong></summary>
+<summary><strong>Why does *.example.com not match example.com?</strong></summary>
 
-Wildcard rules match subdomains only. Add both `example.com` and `*.example.com` when you need both.
+Wildcard rules match subdomains only. To allow both, list `example.com` and `*.example.com`.
 </details>
 
 <details>
-<summary><strong>Why is a cross-site redirect blocked?</strong></summary>
+<summary><strong>Why is a cross-site redirect refused?</strong></summary>
 
-The provider follows same-origin redirects only. The agent can issue a separate fetch for the new URL, preventing trust in one validated origin from being inherited by another.
+Only same-origin redirects (same scheme, host, and port) are followed, each hop checked again. A cross-origin redirect fails with `WEB_REDIRECT_BLOCKED`; the agent fetches the new URL in a separate call, so trust in one target never carries over to another site.
 </details>
 
-## Development
+<details>
+<summary><strong>Can I keep the native provider next to this plugin?</strong></summary>
 
-For local development:
+Yes, but only when something must keep using the native `http` provider. See [examples/coexist.cordis.yml](examples/coexist.cordis.yml): the plugin uses `providerId: http-enhanced`, `web-fetch-http` is re-enabled, and the `web` row states both `searchProvider` and `fetchProvider`. Two providers cannot register the same id; that fails at startup with `WEB_DUPLICATE_PROVIDER`.
+</details>
 
-```bash
-pnpm install
-pnpm run check
-```
+<details>
+<summary><strong>Does the allowlist still apply with an HTTP proxy configured?</strong></summary>
 
-`pnpm run check` runs type checking, lint, builds, tests, and package publication checks. The Host bundle is emitted as `lib/index.js`; the browser Client bundle is emitted as `lib/client.cjs`.
+A request routed through a proxy has its hostname resolved by the proxy and gets no local DNS check, exactly as with the native provider. The allowlist applies to direct requests and to IP literals. When the URL host is an IP literal, the plugin checks it first: a non-public address outside the allowlist is refused and never reaches the proxy.
+</details>
+
+## Documentation
+
+The design documents are in Chinese.
+
+- [Configuration reference](docs/configuration.zh-CN.md): fields, empty versus reset, YAML examples, provider selection, configuration format versions
+- [Architecture](docs/architecture.zh-CN.md): modules, data flow, composition, browser face, error codes
+- [Security](docs/security.zh-CN.md): threat model, fake-IP risks, review and rollout checklists
+- [Providers and roadmap](docs/providers.zh-CN.md): the backend model and planned fetch backends
+- [CHANGELOG](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
 
 ## License and attribution
 
-This project is licensed under the [MIT License](LICENSE). Its network security model and parts of the implementation are based on DeepSeek Harness `@deepseek-ai/dsh-web-fetch-http`; see [NOTICE](NOTICE). This project is not an official DeepSeek package unless explicitly stated by its publisher.
+[MIT License](LICENSE). The plugin uses DeepSeek Harness's `@deepseek-ai/dsh-web-fetch-http` at runtime, and part of its DNS validation is adapted from that package; see [NOTICE](NOTICE). This is not an official DeepSeek package.
