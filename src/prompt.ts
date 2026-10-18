@@ -48,14 +48,16 @@ export function registerAllowlistNotice(ctx: Context, providerId: string, read: 
 /**
  * Whether the next `web_fetch` reaches `providerId`, judged the way `ctx.web`
  * selects: the `web` row's pinned `fetchProvider`, else
- * `$DSH_WEB_FETCH_PROVIDER`. A composition without a readable pin counts as yes.
+ * `$DSH_WEB_FETCH_PROVIDER`. The `web` row is looked up beside this plugin's
+ * own row, since a Profile mounts its rows inside an include subtree. A
+ * composition without a readable pin counts as yes.
  */
 function routesFetchTo(ctx: Context, providerId: string): boolean {
   let web: Partial<WebRuntimeConfig> | undefined
   try {
-    web = ctx.get('loader')?.resolve(WEB_ENTRY_ID).fiber?.config
+    web = ctx.fiber.entry?.parent.tree.resolve(WEB_ENTRY_ID).fiber?.config
   } catch {
-    // No row with that id: a custom composition we cannot inspect.
+    // No sibling row with that id: a custom composition we cannot inspect.
   }
   const pinned = web?.fetchProvider?.get() ?? process.env.DSH_WEB_FETCH_PROVIDER
   return pinned === undefined || pinned === providerId

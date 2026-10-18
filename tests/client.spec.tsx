@@ -132,11 +132,13 @@ describe('settings page', () => {
     expect(page.plugin.mutate).toHaveBeenLastCalledWith([{ op: 'set', path: ['allowHostnames'], value: ['wiki.example.com'] }], undefined)
   })
 
-  it('says when another provider serves web_fetch and how to switch back', () => {
+  it('says when the DeepSeek Fetch API serves web_fetch instead', () => {
     const page = mount({}, 'deepseek-fetch-api')
-    expect(page.text()).toContain(t('routeOther', { id: 'deepseek-fetch-api' }))
-    expect(page.text()).toContain(en.routeOtherDeepSeek)
+    expect(page.text()).toContain(en.routeDeepSeek)
     page.web.publish({ value: { fetchProvider: 'http' } })
-    expect(page.text()).not.toContain(en.routeOtherDeepSeek)
+    expect(page.text()).not.toContain(en.routeDeepSeek)
+    // A custom providerId is indistinguishable from this plugin, so it is not flagged.
+    page.web.publish({ value: { fetchProvider: 'http-enhanced' } })
+    expect(page.text()).not.toContain(en.routeDeepSeek)
   })
 })

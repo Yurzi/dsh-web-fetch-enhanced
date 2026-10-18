@@ -1,5 +1,10 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
+import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import WebRuntime from '@deepseek-ai/dsh-web'
@@ -7,26 +12,31 @@ import { describe, expect, it, onTestFinished } from 'vitest'
 import * as plugin from '../src/index.ts'
 import { ENTRY_ID } from '../src/contract.ts'
 
-/** Boot the plugin the way a Profile does: Loader rows for `web` and this plugin. */
+/** Boot the plugin the way a Profile does: `web` and this plugin as rows of one included entry list. */
 async function boot(config: object = {}) {
-  const ctx = new Context()
-  onTestFinished(async () => { await ctx.fiber.dispose() })
-  await ctx.plugin(Loader)
-  await ctx.plugin(SystemPrompt, { includeHarnessIdentity: false })
-  ctx.loader.builtins.web = WebRuntime
-  ctx.loader.builtins.enhanced = plugin
-  await ctx.loader.root.update([
+  const dir = await mkdtemp(join(tmpdir(), 'wfe-'))
+  const file = join(dir, 'profile.json')
+  await writeFile(file, JSON.stringify([
     { id: 'web', name: 'cordis:web', config: { searchProvider: 'deepseek-official', fetchProvider: 'http' } },
     { id: ENTRY_ID, name: 'cordis:enhanced', config },
-  ])
+  ]))
+  const ctx = new Context()
+  onTestFinished(async () => {
+    await ctx.fiber.dispose()
+    await rm(dir, { recursive: true })
+  })
+  await ctx.plugin(Loader)
+  await ctx.plugin(SystemPrompt, { includeHarnessIdentity: false })
+  Object.assign(ctx.loader.builtins, { include: Include, web: WebRuntime, enhanced: plugin })
+  await ctx.loader.root.update([{ id: 'profile', name: 'cordis:include', config: { path: pathToFileURL(file).href } }])
   await ctx.loader.await()
   const update = async (id: string, value: object) => {
-    await ctx.loader.resolve(id).update({ config: value })
+    await ctx.loader.resolve(`profile:${id}`).update({ config: value })
     await ctx.loader.await()
   }
   const note = async () => (await ctx.systemPrompt.assemble()).contexts
     .find(context => context.name === 'web-fetch-enhanced:allowlist')?.text ?? ''
-  return { ctx, update, note, entry: () => ctx.loader.resolve(ENTRY_ID) }
+  return { ctx, update, note, entry: () => ctx.loader.resolve(`profile:${ENTRY_ID}`) }
 }
 
 async function loopbackUrl() {

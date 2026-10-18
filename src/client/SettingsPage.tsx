@@ -108,13 +108,11 @@ function Group({ title, description, children }: { title: string; description?: 
 
 /** Says so when web_fetch is not routed here, and how to route it back. */
 function RouteNotice({ route, t }: { route: FetchRoute; t: Translate }) {
-  if (route.kind !== 'other' && route.kind !== 'auto') return null
+  if (route.kind !== 'deepseek-api' && route.kind !== 'auto') return null
   return (
     <div className="wfe-notice" role="status">
       <IconInfoOutlineRegular size={14} />
-      {route.kind === 'auto'
-        ? <p>{t('routeAuto')}</p>
-        : <p>{t('routeOther', { id: route.id })} {t(route.id === 'deepseek-fetch-api' ? 'routeOtherDeepSeek' : 'routeOtherGeneric')}</p>}
+      <p>{t(route.kind === 'auto' ? 'routeAuto' : 'routeDeepSeek')}</p>
     </div>
   )
 }

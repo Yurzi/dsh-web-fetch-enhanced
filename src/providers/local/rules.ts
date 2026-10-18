@@ -154,7 +154,13 @@ export function stripIpv6Brackets(hostname: string): string {
 function parseHostname(source: string): ParseResult<string> {
   if (source === '' || /[\s@\\]/.test(source)) return refuse('syntax')
   const bare = stripIpv6Brackets(source)
-  if (DECIMAL_IPV4.test(bare) || ipaddr.IPv6.isValid(bare)) return { ok: true, value: normalizeHost(bare) }
+  if (bare.includes('%')) return refuse('zone')
+  if (DECIMAL_IPV4.test(bare)) return { ok: true, value: bare }
+  if (ipaddr.IPv6.isValid(bare)) {
+    // Only forms a URL can carry: the URL parser refuses, for example, a zero-padded IPv4 tail.
+    const url = URL.parse(`http://[${bare}]/`)
+    return url === null ? refuse('syntax') : { ok: true, value: normalizeHost(url.hostname) }
+  }
   // A URL, a path, or a port: offer the hostname it names.
   if (/[/:?#]/.test(source)) {
     const url = URL.parse(/^[a-z][a-z\d+.-]*:\/\//i.test(source) ? source : `http://${source}`)

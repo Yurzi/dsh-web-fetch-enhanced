@@ -10,7 +10,7 @@
  */
 import type { SettingsFormShell } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
-import { DEFAULT_PROVIDER_ID, MAX_TIMER_DELAY_MS, isValidUserAgent } from '../contract.ts'
+import { MAX_TIMER_DELAY_MS, isValidUserAgent } from '../contract.ts'
 import { type AllowlistField, type AllowlistReading, readAllowlist } from './allowlist-lines.ts'
 
 /** Numeric limit fields, edited under the Limits disclosure. */
@@ -29,16 +29,16 @@ export interface FieldState {
   readonly invalid: boolean
 }
 
-/** Which provider `ctx.web` routes `web_fetch` to, as far as the page can tell. */
+/** Where `ctx.web` routes `web_fetch`, as far as the page can tell. */
 export type FetchRoute =
+  /** This plugin, or a provider the page cannot tell apart from it (a custom `providerId`). */
+  | { readonly kind: 'this' }
   /** The `web` row is not served to this client. */
   | { readonly kind: 'unknown' }
-  /** This plugin. */
-  | { readonly kind: 'this' }
   /** Nothing is pinned, so the Host auto-selects and may find several candidates. */
   | { readonly kind: 'auto' }
-  /** Another provider. */
-  | { readonly kind: 'other'; readonly id: string }
+  /** The official DeepSeek Fetch API, selected by the Web search page's switch. */
+  | { readonly kind: 'deepseek-api' }
 
 /** Everything the page renders. */
 export interface SettingsPageState extends SettingsFormShell {
@@ -268,9 +268,17 @@ function stored(snapshot: ConfigFormSnapshot<Values>, field: FieldName): boolean
   return typeof user === 'object' && user !== null && Object.hasOwn(user, field)
 }
 
+/** Provider id of the official DeepSeek Fetch API. */
+const DEEPSEEK_FETCH_API = 'deepseek-fetch-api'
+
+/**
+ * The page only names a provider it can identify: this plugin's `providerId`
+ * is not a live field, so any other pinned id may be this plugin under a
+ * custom id and is not flagged.
+ */
 function routeOf(web: ConfigFormSnapshot<WebSelection>): FetchRoute {
   if (web.status !== 'ready') return { kind: 'unknown' }
   const id = web.value?.fetchProvider
   if (id === undefined || id === '') return { kind: 'auto' }
-  return id === DEFAULT_PROVIDER_ID ? { kind: 'this' } : { kind: 'other', id }
+  return id === DEEPSEEK_FETCH_API ? { kind: 'deepseek-api' } : { kind: 'this' }
 }

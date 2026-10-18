@@ -48,6 +48,7 @@ describe('hostname rules', () => {
     ['https://wiki.example.com/page', { code: 'not-hostname', fix: 'wiki.example.com' }],
     ['wiki.example.com:8080', { code: 'not-hostname', fix: 'wiki.example.com' }],
     ['user@example.com', { code: 'syntax' }],
+    ['fe80::1%eth0', { code: 'zone' }],
   ])('refuses %j', (rule, problem) => {
     expect(parseHostnameRule(rule)).toEqual({ ok: false, problem })
   })
