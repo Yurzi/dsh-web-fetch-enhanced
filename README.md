@@ -164,6 +164,7 @@ patch 会整体替换该行的 `config`，要保留的字段都要写上。全�
 - [架构](docs/architecture.zh-CN.md)：模块、数据流、组合方式、浏览器端、错误码
 - [安全设计](docs/security.zh-CN.md)：威胁模型、Fake-IP 风险、审查与上线检查表
 - [Provider 与路线图](docs/providers.zh-CN.md)：后端模型与计划中的抓取后端
+- [端到端测试](docs/e2e.zh-CN.md)：在隔离的真实 DSH 中验证组合、抓取和设置页
 - [CHANGELOG](CHANGELOG.md) · [贡献指南](CONTRIBUTING.md) · [安全策略](SECURITY.md)
 
 ## 许可证与来源

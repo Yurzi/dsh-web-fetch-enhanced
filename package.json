@@ -76,7 +76,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run test && publint",
-    "prepack": "pnpm run check"
+    "prepack": "pnpm run check",
+    "test:e2e": "pnpm run build && vitest run --config vitest.e2e.config.ts"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
@@ -111,6 +112,7 @@
     "js-yaml": "^4.1.0",
     "oxlint": "^1.51.0",
     "oxlint-tsgolint": "7.0.2001",
+    "playwright-core": "^1.61.1",
     "publint": "^0.3.21",
     "react": "^18.2.0",
     "react-test-renderer": "18.3.1",

@@ -1,0 +1,13 @@
+# Overlay for the in-process host boot: drop the rows that serve the browser
+# GUI, so the probe binds no port (the default 3080 may be in use). Everything
+# behind ctx.web stays exactly as the profile composes it.
+- id: web-startup
+  disabled: true
+- id: webserver
+  disabled: true
+- id: web-runtime
+  disabled: true
+- id: connection
+  disabled: true
+- id: modules
+  disabled: true

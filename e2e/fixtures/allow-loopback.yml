@@ -1,0 +1,7 @@
+# Overlay standing in for an operator who opened 127.0.0.1 on the plugin page.
+# A patch replaces the row's whole config, so this is the row's entire config.
+- id: web-fetch-enhanced
+  config:
+    allowCidrs:
+      - 127.0.0.1/32
+    userAgent: wfe-e2e/1.0

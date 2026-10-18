@@ -1,6 +1,7 @@
 node_modules/
 lib/
 coverage/
+.e2e/
 .pnpm-store/
 .pnpm-home/
 .xdg/

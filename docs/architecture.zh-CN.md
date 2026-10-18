@@ -99,7 +99,16 @@ DSH 0.2.1 的 base bundle 带有四行 Web 相关配置：`web`（`searchProvide
 
 patch 会整体替换目标行的 `config`，不做深合并。0.0.3 到 0.0.12 的 bundle patch 把 `web.config` 改写成只有 `fetchProvider: http-enhanced`，`searchProvider` 随之丢失。DSH 0.2.1 的 base 挂载了 `web-deepseek-api`，它注册的 `deepseek-search-api` 和 `deepseek-fetch-api` 的 `available()` 始终为 true，于是 `web_search` 在 `deepseek-official` 和 `deepseek-search-api` 之间自动选择失败，报 `WEB_PROVIDER_AMBIGUOUS`。这一点已在真实的 0.2.1-rc.2 组合上复现。
 
-占用原生 id 后，插件不需要改写 `web` 行，也就不会覆盖其他插件或用户写下的选择。[tests/bundle.spec.ts](../tests/bundle.spec.ts) 用 include 插件真实的 patch 语义套用 bundle patch，断言 `web` 行与 base 完全一致。
+占用原生 id 后，插件不需要改写 `web` 行，也就不会覆盖其他插件或用户写下的选择。[tests/bundle.spec.ts](../tests/bundle.spec.ts) 用 include 插件真实的 patch 语义套用 bundle patch，断言 `web` 行与 base 完全一致；[端到端测试](e2e.zh-CN.md) 在真实安装的 Profile 上再验证一次。
+
+要让 `web_fetch` 落到本插件，曾考虑过四种做法：
+
+| 做法 | 结果 |
+| --- | --- |
+| 保持 `http-enhanced`，patch 只写 `web.fetchProvider`（0.0.12） | `searchProvider` 丢失，DSH 0.2.1 上 `web_search` 报歧义 |
+| 保持 `http-enhanced`，patch 把 `web` 行两个字段都写全 | 本插件替 `searchProvider` 拍板：与 dsh-web-search-enhanced 等也改写 `web` 行的插件互相覆盖，后应用者获胜；官方开关关闭时写回 `http`，指向已停用的原生 provider，报 `WEB_PROVIDER_CONFIGURED_MISSING` |
+| 保持 `http-enhanced`，再停用 `web-deepseek-api` 消除歧义 | DeepSeek Search / Fetch API 随之不可用，官方开关打开后指向不存在的 provider |
+| **注册为 `http`，只停用原生行（采用）** | 不改 `web` 行；与其他插件、官方开关、用户覆盖都能组合。代价是不能与原生 provider 同时以 `http` 注册，需要并存时用 4.5 的共存模式 |
 
 ### 4.4 官方开关
 

@@ -17,6 +17,7 @@ pnpm run check
 | `pnpm run dev` | `tsdown --watch`，持续构建 `lib/index.js` 和 `lib/client.cjs` |
 | `pnpm run test` | 只运行测试 |
 | `pnpm run test:coverage` | 测试并检查覆盖率下限（行 85%、分支 75%）。下限用来发现没有测试的模块，不是要追的指标 |
+| `pnpm run test:e2e` | 在隔离的真实 DSH 中做端到端测试，见 [端到端测试](docs/e2e.zh-CN.md)。首次运行需联网安装 DSH |
 | `pnpm run typecheck` / `pnpm run lint` / `pnpm run build` | 单独运行各步骤 |
 
 ## 开发循环
@@ -55,23 +56,22 @@ pnpm run check
 
 不要给这个 provider 增加凭据、任意请求头、由模型控制的白名单、环境代理认证、跨源重定向或子资源加载。这些能力需要单独的信任和审批设计。远程抓取后端必须遵守 [Provider 与路线图](docs/providers.zh-CN.md) 中的披露和出站规则。
 
-## 可选：隔离的端到端验证
+## 端到端测试
 
-单元测试不覆盖真实 Profile 的组合和浏览器页面。发布前可以在一个隔离环境中做端到端验证：
+单元测试不覆盖真实 Profile 的组合和浏览器页面。改动 bundle patch、provider 注册、设置页，或升级 DSH 基线时运行：
 
-- 使用独立的 `DSH_HOME`、系统 HOME、XDG 目录、临时目录和包管理器缓存，不碰日常使用的 Profile 和正在运行的 DSH 服务；
-- 用 `pnpm pack` 得到的 tarball 通过 `dsh plugin --profile web add <tarball>` 安装，验证的是发布产物而不是源码；
-- 用 `dsh --profile web --dump-config` 检查合成后的 `web`、`web-fetch-http` 和插件行；
-- 真实启动 Host，验证：空白名单时回环地址被拒绝；放行 `127.0.0.1/32` 后可以抓取本地服务，且服务看到配置的 User-Agent；`web_search` 不报 `WEB_PROVIDER_AMBIGUOUS`；
-- 在另一个端口启动 Web，用浏览器打开插件页，检查桌面和窄屏、浅色和深色下页面可用且没有控制台错误。
+```bash
+pnpm run test:e2e
+```
 
-每次构建后都要重新安装和重启；安装好的 tarball 不会随源码变化。
+它在 `.e2e/` 下的隔离环境里安装被测版本的 DSH，用插件管理器装入打包后的插件，真实启动 Host 和 DSH Web 验证组合、抓取和设置页，不会读写你自己的 DSH home 或正在运行的 DSH。运行方式、隔离细节和手工部署同一环境的命令见 [端到端测试](docs/e2e.zh-CN.md)。
 
 ## 发布检查
 
 ```bash
 pnpm run check
 pnpm run test:coverage
+pnpm run test:e2e
 pnpm pack --dry-run
 ```
 

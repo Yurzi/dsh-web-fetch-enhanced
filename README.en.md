@@ -166,6 +166,7 @@ The design documents are in Chinese.
 - [Architecture](docs/architecture.zh-CN.md): modules, data flow, composition, browser face, error codes
 - [Security](docs/security.zh-CN.md): threat model, fake-IP risks, review and rollout checklists
 - [Providers and roadmap](docs/providers.zh-CN.md): the backend model and planned fetch backends
+- [End-to-end tests](docs/e2e.zh-CN.md): composition, fetching, and the settings page checked in an isolated real DSH
 - [CHANGELOG](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
 
 ## License and attribution

@@ -13,7 +13,8 @@ DeepSeek Harness (DSH) plugin `dsh-web-fetch-enhanced`: lets `web_fetch` reach o
 - `src/client/` – browser face: Plugins-page settings (`settings-page.ts` controller, `SettingsPage.tsx`, `allowlist-lines.ts`, `locales.ts`, `style.css`).
 - `cordis.patch.yml` – bundle patch: disable `web-fetch-http`, insert the plugin row.
 - `tests/` – vitest specs; `tests/support/primitives.tsx` stands in for the shell's UI primitives.
-- `docs/` – architecture, configuration, security, providers roadmap.
+- `e2e/` – end-to-end suite against an isolated real DSH (`pnpm run test:e2e`, config `vitest.e2e.config.ts`).
+- `docs/` – architecture, configuration, security, providers roadmap, e2e.
 
 ## Commands
 
@@ -38,7 +39,7 @@ DeepSeek Harness (DSH) plugin `dsh-web-fetch-enhanced`: lets `web_fetch` reach o
 ## Verify
 
 1. `pnpm run check` (and `pnpm run test:coverage` for releases).
-2. Optional: isolated end-to-end run in a throwaway `DSH_HOME` — install the packed tarball, check `dsh --profile web --dump-config` (native row disabled, `web` row has both `searchProvider` and `fetchProvider`), confirm loopback is refused until allowed, `web_search` is not ambiguous, and the Plugins page renders. Never touch the user's running DSH or real Profiles.
+2. `pnpm run test:e2e` when touching the bundle patch, provider registration, the settings page, or the DSH baseline. It installs DSH and the packed plugin into an isolated `.e2e/` world and drives the real Host and Web GUI (see `docs/e2e.zh-CN.md`). Never touch the user's running DSH or real Profiles.
 
 ## Docs map
 
@@ -47,6 +48,7 @@ DeepSeek Harness (DSH) plugin `dsh-web-fetch-enhanced`: lets `web_fetch` reach o
 - `docs/architecture.zh-CN.md` – modules, data flow, composition, lifecycle, browser face, error codes.
 - `docs/security.zh-CN.md` – threat model, responsibilities, checklists.
 - `docs/providers.zh-CN.md` – backend seam, roadmap, disclosure/egress/credential/fallback rules.
+- `docs/e2e.zh-CN.md` – end-to-end suite (`e2e/`), isolation, manual deployment of the same environment.
 - `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `NOTICE`.
 
 Keep docs in sync with code: when behavior changes, update README (both languages), the relevant doc, and CHANGELOG.

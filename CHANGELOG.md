@@ -22,6 +22,7 @@
 - 插件页只在 Host 运行插件行时注册。
 - 插件页显示的标题、描述和图标（`locale/*.json`、`assets/icon.svg`）。
 - provider 后端模型：插件只占 `ctx.web` 的一个席位，按请求委托给后端，为后续可选后端做准备，见 [Provider 与路线图](docs/providers.zh-CN.md)。
+- 端到端测试 `pnpm run test:e2e`：在隔离环境中安装被测版本的 DSH，用插件管理器装入打包产物，真实启动 Host 与 DSH Web 验证组合、抓取和设置页，见 [端到端测试](docs/e2e.zh-CN.md)。
 
 ### 变更
 
