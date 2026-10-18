@@ -46,10 +46,10 @@ export const en = {
   userAgentInvalid: 'Use one line of printable Latin-1 characters.',
   limitsTitle: 'Limits',
   timeoutMs: 'Timeout (ms)',
-  maxResponseBytes: 'Bytes read at most',
-  maxBodyChars: 'Characters returned at most',
-  maxRedirects: 'Same-origin redirects followed at most',
-  limitsHint: 'Empty uses the inherited value.',
+  maxResponseBytes: 'Max response bytes',
+  maxBodyChars: 'Max returned characters',
+  maxRedirects: 'Max same-origin redirects',
+  limitsHint: 'Leave a field empty to use the inherited value.',
   invalidInteger: 'Enter a whole number in range.',
 } as const
 
@@ -98,9 +98,9 @@ export const zh: Record<LocaleKey, string> = {
   userAgentInvalid: '请输入一行可打印的 Latin-1 字符。',
   limitsTitle: '限制',
   timeoutMs: '超时（毫秒）',
-  maxResponseBytes: '最多读取字节数',
-  maxBodyChars: '最多返回字符数',
-  maxRedirects: '最多跟随同源重定向次数',
-  limitsHint: '留空则使用继承值。',
+  maxResponseBytes: '最大响应字节数',
+  maxBodyChars: '最大返回字符数',
+  maxRedirects: '最多同源重定向次数',
+  limitsHint: '留空的项使用继承值。',
   invalidInteger: '请输入范围内的整数。',
 }

@@ -27,7 +27,7 @@ export interface LineReport {
 export interface AllowlistReading {
   /** The rules a save would store, or undefined while any line is refused. */
   readonly values: readonly string[] | undefined
-  /** Refusals first, then warnings, each in line order. */
+  /** Notes in line order. */
   readonly reports: readonly LineReport[]
 }
 
@@ -38,8 +38,8 @@ export interface AllowlistReading {
  */
 export function readAllowlist(field: AllowlistField, text: string): AllowlistReading {
   const values: string[] = []
-  const blocking: LineReport[] = []
-  const warnings: LineReport[] = []
+  const reports: LineReport[] = []
+  let refused = false
   const seen = new Map<string, number>()
   text.split(/\r?\n/).forEach((raw, index) => {
     const line = index + 1
@@ -47,22 +47,24 @@ export function readAllowlist(field: AllowlistField, text: string): AllowlistRea
     if (value === '') return
     const parsed = field === 'allowCidrs' ? parseCidr(value) : parseHostnameRule(value)
     if (!parsed.ok) {
-      blocking.push({ line, text: value, note: { kind: 'problem', problem: parsed.problem } })
+      refused = true
+      reports.push({ line, text: value, note: { kind: 'problem', problem: parsed.problem } })
       return
     }
     const key = JSON.stringify(parsed.value)
     const first = seen.get(key)
     if (first !== undefined) {
-      blocking.push({ line, text: value, note: { kind: 'duplicate', of: first } })
+      refused = true
+      reports.push({ line, text: value, note: { kind: 'duplicate', of: first } })
       return
     }
     seen.set(key, line)
     values.push(value)
     if (field === 'allowCidrs' && 'prefixLength' in parsed.value) {
-      for (const warning of cidrWarnings(parsed.value)) warnings.push({ line, text: value, note: { kind: 'warning', warning } })
+      for (const warning of cidrWarnings(parsed.value)) reports.push({ line, text: value, note: { kind: 'warning', warning } })
     }
   })
-  return { values: blocking.length === 0 ? values : undefined, reports: [...blocking, ...warnings] }
+  return { values: refused ? undefined : values, reports }
 }
 
 /**

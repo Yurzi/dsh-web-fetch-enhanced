@@ -42,14 +42,16 @@
   padding: 10px 12px;
   border-radius: var(--dsw-radius-md);
   background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 10%, transparent);
-  color: var(--dsw-alias-state-warn-label, var(--dsw-alias-state-warn-primary));
+  color: var(--dsw-alias-label-primary);
   font-size: 12px;
   line-height: 18px;
 }
 
+/* Amber carries the tone; body text stays readable in both themes. */
 .wfe-notice > svg {
   flex: none;
   margin-top: 2px;
+  color: var(--dsw-alias-state-warn-primary);
 }
 
 .wfe-notice p {
@@ -122,7 +124,7 @@
 }
 
 .wfe-textarea::placeholder {
-  color: var(--dsw-alias-label-dimmed, var(--dsw-alias-label-tertiary));
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .wfe-textarea:focus-visible {
@@ -176,7 +178,11 @@
 }
 
 .wfe-line[data-severity='warning'] {
-  color: var(--dsw-alias-state-warn-label, var(--dsw-alias-state-warn-primary));
+  color: var(--dsw-alias-label-secondary);
+}
+
+.wfe-line[data-severity='warning'] > svg {
+  color: var(--dsw-alias-state-warn-primary);
 }
 
 .wfe-line > svg {
@@ -184,6 +190,7 @@
   margin-top: 3px;
 }
 
+/* The fix sits right after its message and wraps with it on narrow screens. */
 .wfe-line-text {
   flex: 1;
   min-width: 0;
@@ -191,6 +198,7 @@
   flex-wrap: wrap;
   align-items: baseline;
   column-gap: 6px;
+  row-gap: 2px;
 }
 
 .wfe-line-ref {
@@ -204,7 +212,6 @@
 }
 
 .wfe-line-fix {
-  flex: none;
   border: none;
   background: none;
   padding: 0;
@@ -270,9 +277,8 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-.wfe-disclosure-panel {
-  padding-left: 12px;
-  border-left: 0.5px solid var(--dsw-alias-border-l2);
+.wfe-disclosure-panel > .wfe-hint {
+  margin-top: -6px;
 }
 
 .wfe-reset:focus-visible,
@@ -282,4 +288,16 @@
   outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
   border-radius: var(--dsw-radius-sm);
+}
+
+@media (max-width: 600px) {
+  /* A comfortable touch target where the fix is tapped, not clicked. */
+  .wfe-line-fix {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 8px;
+    border-radius: var(--dsw-radius-sm);
+    background: var(--dsw-alias-bg-layer-4);
+  }
 }

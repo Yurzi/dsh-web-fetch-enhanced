@@ -171,18 +171,18 @@ function AllowlistInput(props: FieldControl & {
             ))}
           </ul>
         )}
-        {props.presets.length === 0 || props.disabled ? null : (
-          <div className="wfe-presets">
-            {props.presets.map(preset => (
-              <button key={preset.rule} type="button" className="wfe-chip" onClick={() => { props.onEdit(appendLine(props.text, preset.rule)) }}>
-                <IconPlusOutlineRegular size={12} />
-                <span>{preset.label}</span>
-                <code>{preset.rule}</code>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
+      {props.presets.length === 0 || props.disabled ? null : (
+        <div className="wfe-presets">
+          {props.presets.map(preset => (
+            <button key={preset.rule} type="button" className="wfe-chip" onClick={() => { props.onEdit(appendLine(props.text, preset.rule)) }}>
+              <IconPlusOutlineRegular size={12} />
+              <span>{preset.label}</span>
+              <code>{preset.rule}</code>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -210,12 +210,12 @@ function LineNote({ report, field, disabled, t, onFix }: {
         <span className="wfe-line-ref">{t('lineLabel', { line: report.line })}</span>
         <code>{report.text}</code>
         <span>{message}</span>
+        {fix === undefined ? null : (
+          <button type="button" className="wfe-line-fix" disabled={disabled} onClick={() => { onFix(fix) }}>
+            {t('fix', { fix })}
+          </button>
+        )}
       </span>
-      {fix === undefined ? null : (
-        <button type="button" className="wfe-line-fix" disabled={disabled} onClick={() => { onFix(fix) }}>
-          {t('fix', { fix })}
-        </button>
-      )}
     </li>
   )
 }
@@ -255,13 +255,13 @@ function Limits({ state, t, control }: { state: SettingsPageState; t: Translate;
       </button>
       {expanded ? (
         <div id={panelId} className="wfe-disclosure-panel">
+          <p className="wfe-hint">{t('limitsHint')}</p>
           {LIMITS.map(name => (
             <SettingsValueField
               key={name}
               {...control(name)}
               id={'web-fetch-enhanced-' + name}
               label={t(name)}
-              hint={t('limitsHint')}
               invalidLabel={t('invalidInteger')}
               numeric
             />
