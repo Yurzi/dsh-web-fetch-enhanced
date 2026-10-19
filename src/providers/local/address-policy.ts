@@ -69,8 +69,11 @@ function parseAddress(input: string): IpAddress | undefined {
   if (parsed.kind() === 'ipv4') return parsed
   const v6 = parsed as ipaddr.IPv6
   if (v6.isIPv4MappedAddress()) return v6.toIPv4Address()
+  // IPv4-compatible (::/96) embeds an IPv4 address, except :: and ::1, which are IPv6's own.
+  const range = v6.range()
   const bytes = v6.toByteArray()
-  return bytes.slice(0, 12).every(byte => byte === 0) ? new ipaddr.IPv4(bytes.slice(12)) : v6
+  const compatible = range !== 'unspecified' && range !== 'loopback' && bytes.slice(0, 12).every(byte => byte === 0)
+  return compatible ? new ipaddr.IPv4(bytes.slice(12)) : v6
 }
 
 function accept<T>(field: keyof AllowlistRules, rule: string, result: ParseResult<T>): T {

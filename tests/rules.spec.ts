@@ -75,6 +75,12 @@ describe('AddressPolicy', () => {
     expect(fakeIp.allows('any.test', '10.0.0.1')).toBe(false)
   })
 
+  it('matches IPv6 loopback against an IPv6 rule, not as an embedded IPv4 address', () => {
+    expect(policy(['::1/128']).allows('localhost', '::1')).toBe(true)
+    expect(policy(['::1/128']).allows('localhost', '::7f00:1')).toBe(false)
+    expect(policy(['127.0.0.0/8']).allows('localhost', '::7f00:1')).toBe(true)
+  })
+
   it('requires a matching hostname when hostname rules exist, without restricting public sites', () => {
     const scoped = policy(['198.18.0.0/15'], ['api.example.com', '*.docs.example.com'])
     expect(scoped.allows('api.example.com', '198.18.0.1')).toBe(true)

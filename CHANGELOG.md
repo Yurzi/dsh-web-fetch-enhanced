@@ -38,6 +38,7 @@
 - 官方“启用新版 Web 搜索 API”开关现在可以正常切换：打开时 `web_fetch` 使用 `deepseek-fetch-api`，关闭后回到 `http`，即本插件。此前关闭开关会指向已停用的原生 provider，报 `WEB_PROVIDER_CONFIGURED_MISSING`。
 - 白名单外的非公网 IP 字面量在交给官方 transport 之前就被拒绝。官方 transport 会把它判定为公网的 IP 字面量直接交给已配置的出站代理，不经过解析器，而 IPv4 兼容的 IPv6（如 `[::7f00:1]`）会被判定为公网；配置了代理时，这类地址可能经代理到达本机服务。
 - 运行时上下文能在 Profile 的 include 子树中找到 `web` 行，正确判断本插件是否在服务 `web_fetch`。
+- IPv6 回环地址 `::1` 现在能被 `::1/128` 放行。此前它被当作 IPv4 兼容地址 `0.0.0.1` 判断，任何规则都放行不了；在 `localhost` 解析出 `::1` 的系统上，放行本机服务因此失败。
 
 ### 移除
 

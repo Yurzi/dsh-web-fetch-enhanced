@@ -14,6 +14,12 @@ describe('resolveAllowedAddresses', () => {
       .resolves.toEqual([{ address: '93.184.216.34', family: 4 }, { address: '198.18.20.30', family: 4 }])
   })
 
+  it('accepts localhost resolving to both loopback addresses when both are allowed', async () => {
+    await expect(resolveAllowedAddresses('localhost', signal(), policy(['127.0.0.0/8', '::1/128']),
+      answers({ address: '127.0.0.1', family: 4 }, { address: '::1', family: 6 })))
+      .resolves.toHaveLength(2)
+  })
+
   it('refuses the whole set when any answer is outside the allowlist', async () => {
     await expect(resolveAllowedAddresses('mixed.test', signal(), policy(),
       answers({ address: '93.184.216.34', family: 4 }, { address: '10.0.0.2', family: 4 })))
