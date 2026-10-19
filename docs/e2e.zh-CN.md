@@ -49,10 +49,6 @@ pnpm run test:e2e
 
 `.e2e/` 已加入 `.gitignore`。
 
-### 在 CI 中运行
-
-[.github/workflows/e2e.yml](../.github/workflows/e2e.yml) 只能手动触发（Actions → e2e → Run workflow）：缓存 `.e2e/dsh-*`，用 runner 自带的 Chrome 运行整套测试，并把截图和 `web.log` 上传为 artifact。
-
 ## 隔离
 
 一次运行的所有写入都在 `.e2e/run` 下，每次运行开始时清空重建（[global-setup.ts](../e2e/global-setup.ts)、[support/environment.ts](../e2e/support/environment.ts)）：
