@@ -2,7 +2,7 @@
 
 本文件记录 dsh-web-fetch-enhanced 的版本变化，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。0.0.x 期间的版本均可能包含不兼容变化。
 
-## [0.1.0] - 2026-10-18
+## [0.1.0] - 2026-10-19
 
 ### 破坏性变化
 
