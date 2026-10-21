@@ -2,6 +2,13 @@
 
 [中文](README.md) · [English](README.en.md)
 
+> [!IMPORTANT]
+> **本仓库已归档，不再维护。** 开发已迁到 [Yurzi/dsh-tool-web-enhanced](https://github.com/Yurzi/dsh-tool-web-enhanced)。npm 包名 `dsh-web-fetch-enhanced` 不变，0.2.0 起由新仓库发布，作为 [dsh-tool-web-enhanced-profile](https://www.npmjs.com/package/dsh-tool-web-enhanced-profile) 的一部分安装，不再单独安装。
+>
+> 从 0.1.x 升级：先在同一个 profile 里移除本插件（`dsh plugin --profile <profile> remove dsh-web-fetch-enhanced`），再安装 `dsh-tool-web-enhanced-profile`。0.1.x 的设置不会被读取或迁移：设置页会提示并提供“恢复默认设置”，之后在“本机 HTTP”连接里重新填写白名单。详见[从 0.1.x 升级](https://github.com/Yurzi/dsh-tool-web-enhanced#从-01x-升级)。
+>
+> 下文描述的是 0.1.x，仅供存档。
+
 DeepSeek Harness（DSH）插件。它让 `web_fetch` 访问你明确授权的非公网地址，例如 Clash / Mihomo 的 Fake-IP 网段或内网文档站，其余安全检查全部沿用官方 HTTP 抓取实现。安装后直接替换原生 provider，模型侧的工具名、参数和结果都不变；不配置任何网段时，行为与原生一致。
 
 ## 解决什么问题

@@ -2,6 +2,13 @@
 
 [中文](README.md) · [English](README.en.md)
 
+> [!IMPORTANT]
+> **This repository is archived and no longer maintained.** Development continues in [Yurzi/dsh-tool-web-enhanced](https://github.com/Yurzi/dsh-tool-web-enhanced). The npm package `dsh-web-fetch-enhanced` keeps its name; from 0.2.0 it is published from the new repository and installed as part of [dsh-tool-web-enhanced-profile](https://www.npmjs.com/package/dsh-tool-web-enhanced-profile), not on its own.
+>
+> Upgrading from 0.1.x: remove this plugin from the profile (`dsh plugin --profile <profile> remove dsh-web-fetch-enhanced`), then install `dsh-tool-web-enhanced-profile`. 0.1.x settings are neither read nor migrated: the settings page says so and offers Reset; then enter the allowlist again under the "Local HTTP" connection. See [upgrading from 0.1.x](https://github.com/Yurzi/dsh-tool-web-enhanced#从-01x-升级) (in Chinese).
+>
+> The rest of this page describes 0.1.x and is kept for reference.
+
 A DeepSeek Harness (DSH) plugin that lets `web_fetch` reach the non-public addresses you explicitly approve, such as a Clash / Mihomo fake-IP range or an intranet documentation site, while every other safety check stays the official HTTP fetch implementation. Installing it replaces the native provider in place: the model-facing tool name, arguments, and results do not change, and with no ranges configured it behaves exactly like the native provider.
 
 ## What problem it solves
